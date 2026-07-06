@@ -8,6 +8,7 @@
   "references": [
     { "path": "../parser" },
     { "path": "../generator" },
-    { "path": "../platformio" }
+    { "path": "../platformio" },
+    { "path": "../../plugins/servo" }
   ]
 }

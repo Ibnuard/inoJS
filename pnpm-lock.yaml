@@ -43,6 +43,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
 
+  examples/servo:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@inojs/servo':
+        specifier: workspace:*
+        version: link:../../plugins/servo
+
   packages/compiler:
     dependencies:
       '@inojs/generator':
@@ -54,6 +63,9 @@ importers:
       '@inojs/platformio':
         specifier: workspace:*
         version: link:../platformio
+      '@inojs/servo':
+        specifier: workspace:*
+        version: link:../../plugins/servo
     devDependencies:
       typescript:
         specifier: ^5.8.0
@@ -70,6 +82,9 @@ importers:
       '@babel/types':
         specifier: ^7.28.0
         version: 7.29.7
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
     devDependencies:
       typescript:
         specifier: ^5.8.0
@@ -94,8 +109,31 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
+  packages/plugin-api:
+    dependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
+    devDependencies:
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
   packages/types:
     devDependencies:
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  plugins/servo:
+    dependencies:
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+    devDependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
       typescript:
         specifier: ^5.8.0
         version: 5.9.3

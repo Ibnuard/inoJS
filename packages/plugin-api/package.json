@@ -1,5 +1,5 @@
 {
-  "name": "@inojs/generator",
+  "name": "@inojs/plugin-api",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/src/index.js",
@@ -15,7 +15,6 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
-    "@inojs/plugin-api": "workspace:*",
     "@babel/types": "^7.28.0"
   },
   "devDependencies": {

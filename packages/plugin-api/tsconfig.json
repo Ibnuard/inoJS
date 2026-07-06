@@ -4,8 +4,5 @@
     "rootDir": ".",
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts"],
-  "references": [
-    { "path": "../plugin-api" }
-  ]
+  "include": ["src/**/*.ts"]
 }

@@ -11,6 +11,8 @@ This repository currently contains the first MVP slice:
 - PlatformIO project generator
 - compiler snapshot tests
 - diagnostics with source line and column
+- minimal plugin API
+- official Servo plugin
 - minimal `ino` CLI
 - blink example
 
@@ -117,10 +119,30 @@ ino doctor --fix
 
 `ino doctor` checks PlatformIO, Python, and the VSCode CLI. If PlatformIO is missing, it can offer installation through Python/pip or the PlatformIO IDE VSCode extension.
 
+## Servo Plugin
+
+```js
+import { Ino } from "@inojs/core";
+import { Servo } from "@inojs/servo";
+
+const core = new Ino();
+const arm = new Servo(9);
+
+core.setup(() => {
+  arm.attach();
+});
+
+core.loop(() => {
+  arm.write(90);
+});
+```
+
+The Servo plugin contributes `#include <Servo.h>`, a C++ `Servo` instance, generated method calls, and the PlatformIO library dependency.
+
 ## Next Compiler Steps
 
 1. Improve diagnostics from warnings into blocking errors where appropriate.
 2. Add board-aware pin validation.
-3. Introduce a plugin contribution model for includes, globals, setup, loop, dependencies, and diagnostics.
-4. Implement the first official plugin, likely Servo.
-5. Add `ino add` and `ino remove` for plugin/module installation.
+3. Add `ino add` and `ino remove` for plugin/module installation.
+4. Improve plugin discovery instead of always loading built-in plugins.
+5. Add the next official plugin, likely DHT or LCD.

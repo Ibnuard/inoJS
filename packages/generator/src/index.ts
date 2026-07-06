@@ -7,6 +7,7 @@ import type {
   Node,
   Statement
 } from "@babel/types";
+import type { InoPlugin, PluginBinding, PluginContext, PluginDiagnostic } from "@inojs/plugin-api";
 
 export type DiagnosticLevel = "error" | "warning";
 
@@ -25,6 +26,11 @@ export interface DiagnosticLocation {
 export interface GenerateResult {
   code: string;
   diagnostics: Diagnostic[];
+  libDeps: string[];
+}
+
+export interface GenerateOptions {
+  plugins?: InoPlugin[];
 }
 
 interface Context {
@@ -34,15 +40,30 @@ interface Context {
   serialAliases: Set<string>;
   autoSerialBegin?: string;
   hasSerialBegin: boolean;
+  includes: Set<string>;
+  globals: string[];
+  setupContributions: string[];
+  loopContributions: string[];
+  libDeps: Set<string>;
+  pluginBindings: Map<string, PluginBinding>;
+  plugins: InoPlugin[];
 }
 
-export function generateArduinoCpp(ast: File): GenerateResult {
+export function generateArduinoCpp(ast: File, options: GenerateOptions = {}): GenerateResult {
+  const plugins = options.plugins ?? [];
   const context: Context = {
     diagnostics: [],
     coreAliases: new Set(["core"]),
     pins: new Map(),
     serialAliases: new Set(),
-    hasSerialBegin: false
+    hasSerialBegin: false,
+    includes: new Set(),
+    globals: [],
+    setupContributions: [],
+    loopContributions: [],
+    libDeps: new Set(),
+    pluginBindings: new Map(),
+    plugins
   };
 
   const setupStatements: string[] = [];
@@ -52,7 +73,7 @@ export function generateArduinoCpp(ast: File): GenerateResult {
     if (statement.type === "ImportDeclaration") continue;
 
     if (statement.type === "VariableDeclaration") {
-      collectTopLevelDeclaration(statement, context);
+      collectTopLevelDeclaration(statement, context, plugins);
       continue;
     }
 
@@ -77,24 +98,34 @@ export function generateArduinoCpp(ast: File): GenerateResult {
 
   const code = [
     "#include <Arduino.h>",
+    ...[...context.includes].map((include) => `#include <${include}>`),
     "",
+    ...context.globals,
+    ...(context.globals.length ? [""] : []),
     "void setup() {",
     ...indent(setupPrologue(context)),
+    ...indent(context.setupContributions),
     ...indent(setupStatements),
     "}",
     "",
     "void loop() {",
+    ...indent(context.loopContributions),
     ...indent(loopStatements),
     "}",
     ""
   ].join("\n");
 
-  return { code, diagnostics: context.diagnostics };
+  return { code, diagnostics: context.diagnostics, libDeps: [...context.libDeps] };
 }
 
-function collectTopLevelDeclaration(statement: Extract<Statement, { type: "VariableDeclaration" }>, context: Context): void {
+function collectTopLevelDeclaration(statement: Extract<Statement, { type: "VariableDeclaration" }>, context: Context, plugins: InoPlugin[]): void {
   for (const declaration of statement.declarations) {
     if (declaration.id.type !== "Identifier" || !declaration.init) continue;
+
+    const pluginContext = createPluginContext(context);
+    if (plugins.some((plugin) => plugin.analyzeDeclaration?.(declaration, pluginContext))) {
+      continue;
+    }
 
     const factoryOptions = getInoFactoryOptions(declaration.init, context);
     if (factoryOptions.isFactory) {
@@ -159,6 +190,9 @@ function statementToCpp(statement: Statement, context: Context): string[] {
 
 function expressionStatementToCpp(expression: Expression, context: Context): string {
   if (expression.type === "CallExpression") {
+    const pluginCall = pluginMethodCall(expression, context);
+    if (pluginCall) return pluginCall;
+
     const pinCall = pinMethodCall(expression, context);
     if (pinCall) return pinCall;
 
@@ -203,6 +237,15 @@ function expressionToCpp(expression: Node, context: Context): string {
       unsupported(context, `Unsupported expression: ${expression.type}`, expression);
       return "/* unsupported */";
   }
+}
+
+function pluginMethodCall(call: CallExpression, context: Context): string | undefined {
+  const pluginContext = createPluginContext(context);
+  for (const plugin of context.plugins) {
+    const generated = plugin.generateCall?.(call, pluginContext);
+    if (generated) return generated;
+  }
+  return undefined;
 }
 
 function pinReadExpression(call: CallExpression, context: Context): string | undefined {
@@ -370,6 +413,46 @@ function setupPrologue(context: Context): string[] {
 
 function unsupported(context: Context, message: string, node?: Node): void {
   context.diagnostics.push({ level: "warning", message, location: locationOf(node) });
+}
+
+function createPluginContext(context: Context): PluginContext {
+  return {
+    addInclude(include) {
+      context.includes.add(include);
+    },
+    addGlobal(code) {
+      context.globals.push(code);
+    },
+    addSetup(code) {
+      context.setupContributions.push(code);
+    },
+    addLoop(code) {
+      context.loopContributions.push(code);
+    },
+    addLibDep(dependency) {
+      context.libDeps.add(dependency);
+    },
+    bindSymbol(name, binding) {
+      context.pluginBindings.set(name, binding);
+    },
+    getBinding(name) {
+      return context.pluginBindings.get(name);
+    },
+    expressionToCpp(expression) {
+      return expressionToCpp(expression, context);
+    },
+    report(diagnostic) {
+      reportPluginDiagnostic(context, diagnostic);
+    }
+  };
+}
+
+function reportPluginDiagnostic(context: Context, diagnostic: PluginDiagnostic): void {
+  context.diagnostics.push({
+    level: diagnostic.level,
+    message: diagnostic.message,
+    location: locationOf(diagnostic.node)
+  });
 }
 
 function locationOf(node: Node | undefined): DiagnosticLocation | undefined {

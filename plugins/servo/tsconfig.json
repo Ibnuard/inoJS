@@ -6,6 +6,6 @@
   },
   "include": ["src/**/*.ts"],
   "references": [
-    { "path": "../plugin-api" }
+    { "path": "../../packages/plugin-api" }
   ]
 }

@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { generateArduinoCpp, type Diagnostic } from "@inojs/generator";
 import { parse } from "@inojs/parser";
 import { generatePlatformIOIni, type PlatformIOConfig } from "@inojs/platformio";
+import { servoPlugin } from "@inojs/servo";
 
 export type { Diagnostic } from "@inojs/generator";
 
@@ -26,24 +27,35 @@ export async function compileProject(options: CompileOptions): Promise<CompileRe
   const sourcePath = join(options.cwd, entry);
   const source = await readFile(sourcePath, "utf8");
   const parsed = parse(source, { filename: sourcePath });
-  const generated = generateArduinoCpp(parsed.ast);
+  const generated = generateArduinoCpp(parsed.ast, { plugins: [servoPlugin] });
 
   const generatedCppPath = join(options.cwd, outDir, "src/main.cpp");
   const platformioIniPath = join(options.cwd, outDir, "platformio.ini");
 
   await mkdir(dirname(generatedCppPath), { recursive: true });
   await writeFile(generatedCppPath, generated.code, "utf8");
-  await writeFile(platformioIniPath, generatePlatformIOIni({
+  const platformio = {
     board: "uno",
     ...config,
-    ...options.platformio
-  }), "utf8");
+    ...options.platformio,
+    libDeps: unique([
+      ...(config.libDeps ?? []),
+      ...generated.libDeps,
+      ...(options.platformio?.libDeps ?? [])
+    ])
+  };
+
+  await writeFile(platformioIniPath, generatePlatformIOIni(platformio), "utf8");
 
   return {
     generatedCppPath,
     platformioIniPath,
     diagnostics: generated.diagnostics
   };
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
 }
 
 async function findEntry(cwd: string): Promise<string> {

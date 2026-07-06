@@ -2,11 +2,13 @@
   "files": [],
   "references": [
     { "path": "./packages/parser" },
+    { "path": "./packages/plugin-api" },
     { "path": "./packages/generator" },
     { "path": "./packages/platformio" },
     { "path": "./packages/compiler" },
     { "path": "./packages/core" },
     { "path": "./packages/types" },
+    { "path": "./plugins/servo" },
     { "path": "./apps/cli" }
   ]
 }

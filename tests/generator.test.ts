@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { generateArduinoCpp } from "../packages/generator/src/index.js";
 import { parse } from "../packages/parser/src/index.js";
+import { servoPlugin } from "../plugins/servo/src/index.js";
 
-function generate(source: string) {
+function generate(source: string, plugins = []) {
   const parsed = parse(source, { filename: "src/main.js" });
-  return generateArduinoCpp(parsed.ast);
+  return generateArduinoCpp(parsed.ast, { plugins });
 }
 
 describe("Arduino C++ generator", () => {
@@ -135,5 +136,41 @@ describe("Arduino C++ generator", () => {
         }
       }
     ]);
+  });
+
+  it("generates Servo plugin code and PlatformIO dependencies", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+      import { Servo } from "@inojs/servo";
+
+      const core = new Ino();
+      const arm = new Servo(9);
+
+      core.setup(() => {
+        arm.attach();
+      });
+
+      core.loop(() => {
+        arm.write(90);
+      });
+    `, [servoPlugin]);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.libDeps).toEqual(["arduino-libraries/Servo"]);
+    expect(result.code).toMatchInlineSnapshot(`
+      "#include <Arduino.h>
+      #include <Servo.h>
+
+      Servo servo_arm;
+
+      void setup() {
+        servo_arm.attach(9);
+      }
+
+      void loop() {
+        servo_arm.write(90);
+      }
+      "
+    `);
   });
 });
