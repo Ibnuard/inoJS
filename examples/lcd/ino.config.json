@@ -1,0 +1,6 @@
+{
+  "board": "uno",
+  "serial": {
+    "baudRate": 115200
+  }
+}

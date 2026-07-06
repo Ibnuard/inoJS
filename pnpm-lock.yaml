@@ -52,6 +52,15 @@ importers:
         specifier: workspace:*
         version: link:../../plugins/dht
 
+  examples/lcd:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@inojs/lcd':
+        specifier: workspace:*
+        version: link:../../plugins/lcd
+
   examples/servo:
     dependencies:
       '@inojs/core':
@@ -69,6 +78,9 @@ importers:
       '@inojs/generator':
         specifier: workspace:*
         version: link:../generator
+      '@inojs/lcd':
+        specifier: workspace:*
+        version: link:../../plugins/lcd
       '@inojs/parser':
         specifier: workspace:*
         version: link:../parser
@@ -144,6 +156,19 @@ importers:
         version: 5.9.3
 
   plugins/dht:
+    dependencies:
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+    devDependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  plugins/lcd:
     dependencies:
       '@inojs/plugin-api':
         specifier: workspace:*

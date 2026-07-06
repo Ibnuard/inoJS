@@ -6,7 +6,7 @@
   "packageManager": "pnpm@10.15.0",
   "scripts": {
     "build": "pnpm -r build",
-    "test": "pnpm --filter @inojs/dht --filter @inojs/servo build && vitest run",
+    "test": "pnpm --filter @inojs/dht --filter @inojs/lcd --filter @inojs/servo build && vitest run",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {

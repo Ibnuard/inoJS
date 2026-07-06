@@ -1,5 +1,5 @@
 {
-  "name": "@inojs/compiler",
+  "name": "@inojs/lcd",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/src/index.js",
@@ -15,13 +15,7 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
-    "@inojs/dht": "workspace:*",
-    "@inojs/generator": "workspace:*",
-    "@inojs/lcd": "workspace:*",
-    "@inojs/parser": "workspace:*",
-    "@inojs/plugin-api": "workspace:*",
-    "@inojs/platformio": "workspace:*",
-    "@inojs/servo": "workspace:*"
+    "@inojs/plugin-api": "workspace:*"
   },
   "devDependencies": {
     "@babel/types": "^7.28.0",

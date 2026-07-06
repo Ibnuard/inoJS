@@ -2,6 +2,7 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { dhtPlugin } from "@inojs/dht";
 import { generateArduinoCpp, type Diagnostic } from "@inojs/generator";
+import { lcdPlugin } from "@inojs/lcd";
 import { parse } from "@inojs/parser";
 import { generatePlatformIOIni, type PlatformIOConfig } from "@inojs/platformio";
 import { servoPlugin } from "@inojs/servo";
@@ -59,6 +60,7 @@ export async function compileProject(options: CompileOptions): Promise<CompileRe
 
 const pluginRegistry: InoPlugin[] = [
   dhtPlugin,
+  lcdPlugin,
   servoPlugin
 ];
 

@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "skipLibCheck": true,
+    "maxNodeModuleJsDepth": 0,
+    "types": [],
+    "paths": {
+      "@inojs/core": ["../../packages/core/src/index.d.ts"],
+      "@inojs/lcd": ["../../plugins/lcd/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.js"],
+  "exclude": ["node_modules", ".ino"]
+}
