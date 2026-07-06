@@ -41,8 +41,10 @@ export const dhtPlugin: InoPlugin = {
     switch (call.callee.property.name) {
       case "begin":
         return `${binding.cppName}.begin()`;
+      case "temperature":
       case "readTemperature":
         return `${binding.cppName}.readTemperature()`;
+      case "humidity":
       case "readHumidity":
         return `${binding.cppName}.readHumidity()`;
       default:

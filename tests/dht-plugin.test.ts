@@ -78,6 +78,32 @@ describe("DHT plugin", () => {
     expect(result.code).toContain("DHT dht_sensor(0, DHT22);");
   });
 
+  it("generates high-level DHT temperature and humidity aliases", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+      import { DHT } from "@inojs/dht";
+
+      const core = new Ino({ serialMonitor: true, baudRate: 115200 });
+      const serial = core.serial();
+      const sensor = new DHT(2, "DHT22");
+
+      core.init(() => {
+        sensor.begin();
+      });
+
+      core.every("readSensor", 2000, () => {
+        serial.log(\`Temperature: \${sensor.temperature()}\`);
+        serial.log(\`Humidity: \${sensor.humidity()}\`);
+      });
+    `, [dhtPlugin]);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("dht_sensor.readTemperature()");
+    expect(result.code).toContain("dht_sensor.readHumidity()");
+    expect(result.code).toContain('Serial.println("Temperature: " + String(dht_sensor.readTemperature()));');
+    expect(result.code).toContain('Serial.println("Humidity: " + String(dht_sensor.readHumidity()));');
+  });
+
   it("reports unsupported DHT methods once", () => {
     const result = generate(`
       import { Ino } from "@inojs/core";

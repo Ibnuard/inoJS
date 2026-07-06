@@ -11,9 +11,6 @@ core.init(() => {
 });
 
 core.every("readSensor", 2000, () => {
-  const temperature = sensor.readTemperature();
-  const humidity = sensor.readHumidity();
-
-  serial.log(`Temperature: ${temperature}`);
-  serial.log(`Humidity: ${humidity}`);
+  serial.log(`Temperature: ${sensor.temperature()}`);
+  serial.log(`Humidity: ${sensor.humidity()}`);
 });
