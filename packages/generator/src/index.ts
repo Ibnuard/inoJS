@@ -7,21 +7,17 @@ import type {
   Node,
   Statement
 } from "@babel/types";
-import type { InoPlugin, PluginBinding, PluginContext, PluginDiagnostic } from "@inojs/plugin-api";
+import type { InoPlugin, PluginDiagnostic } from "@inojs/plugin-api";
+import {
+  createContext,
+  createPluginContext as createPluginApiContext,
+  uniqueCppSymbol,
+  type Context,
+  type Diagnostic,
+  type DiagnosticLocation
+} from "./context.js";
 
-export type DiagnosticLevel = "error" | "warning";
-
-export interface Diagnostic {
-  level: DiagnosticLevel;
-  message: string;
-  location?: DiagnosticLocation;
-}
-
-export interface DiagnosticLocation {
-  filename?: string;
-  line: number;
-  column: number;
-}
+export type { Diagnostic, DiagnosticLocation } from "./context.js";
 
 export interface GenerateResult {
   code: string;
@@ -33,40 +29,9 @@ export interface GenerateOptions {
   plugins?: InoPlugin[];
 }
 
-interface Context {
-  diagnostics: Diagnostic[];
-  coreAliases: Set<string>;
-  pins: Map<string, string>;
-  serialAliases: Set<string>;
-  autoSerialBegin?: string;
-  hasSerialBegin: boolean;
-  includes: Set<string>;
-  globals: string[];
-  setupContributions: string[];
-  loopContributions: string[];
-  libDeps: Set<string>;
-  pluginBindings: Map<string, PluginBinding>;
-  cppSymbols: Set<string>;
-  plugins: InoPlugin[];
-}
-
 export function generateArduinoCpp(ast: File, options: GenerateOptions = {}): GenerateResult {
   const plugins = options.plugins ?? [];
-  const context: Context = {
-    diagnostics: [],
-    coreAliases: new Set(["core"]),
-    pins: new Map(),
-    serialAliases: new Set(),
-    hasSerialBegin: false,
-    includes: new Set(),
-    globals: [],
-    setupContributions: [],
-    loopContributions: [],
-    libDeps: new Set(),
-    pluginBindings: new Map(),
-    cppSymbols: new Set(),
-    plugins
-  };
+  const context = createContext(plugins);
 
   const setupStatements: string[] = [];
   const loopStatements: string[] = [];
@@ -550,51 +515,12 @@ function unsupported(context: Context, message: string, node?: Node): void {
   context.diagnostics.push({ level: "warning", message, location: locationOf(node) });
 }
 
-function createPluginContext(context: Context): PluginContext {
-  return {
-    addInclude(include) {
-      context.includes.add(include);
-    },
-    addGlobal(code) {
-      context.globals.push(code);
-    },
-    addSetup(code) {
-      context.setupContributions.push(code);
-    },
-    addLoop(code) {
-      context.loopContributions.push(code);
-    },
-    addLibDep(dependency) {
-      context.libDeps.add(dependency);
-    },
-    bindSymbol(name, binding) {
-      context.pluginBindings.set(name, binding);
-    },
-    getBinding(name) {
-      return context.pluginBindings.get(name);
-    },
-    uniqueSymbol(name, prefix) {
-      return uniqueCppSymbol(context, name, prefix);
-    },
-    expressionToCpp(expression) {
-      return expressionToCpp(expression, context);
-    },
-    report(diagnostic) {
-      reportPluginDiagnostic(context, diagnostic);
-    }
-  };
-}
-
-function uniqueCppSymbol(context: Context, name: string, prefix = "inojs"): string {
-  const base = `${prefix}_${name}`.replace(/[^a-zA-Z0-9_]/g, "_");
-  let candidate = base;
-  let suffix = 2;
-  while (context.cppSymbols.has(candidate)) {
-    candidate = `${base}_${suffix}`;
-    suffix += 1;
-  }
-  context.cppSymbols.add(candidate);
-  return candidate;
+function createPluginContext(context: Context) {
+  return createPluginApiContext(
+    context,
+    (expression) => expressionToCpp(expression, context),
+    (diagnostic) => reportPluginDiagnostic(context, diagnostic)
+  );
 }
 
 function reportPluginDiagnostic(context: Context, diagnostic: PluginDiagnostic): void {
