@@ -5,6 +5,7 @@ export class Pin {
 
   output() {}
   input() {}
+  inputPullup() {}
   high() {}
   low() {}
   toggle() {}
@@ -12,6 +13,11 @@ export class Pin {
     return false;
   }
   write() {}
+  analogRead() {
+    return 0;
+  }
+  analogWrite() {}
+  pwm() {}
 }
 
 export class SerialPort {
@@ -33,6 +39,9 @@ export class Ino {
   }
   delay() {}
   millis() {
+    return 0;
+  }
+  micros() {
     return 0;
   }
 }

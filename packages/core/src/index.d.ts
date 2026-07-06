@@ -10,11 +10,15 @@ export class Pin {
   constructor(pinNumber: number);
   output(): void;
   input(): void;
+  inputPullup(): void;
   high(): void;
   low(): void;
   toggle(): void;
   read(): boolean;
   write(value: PinValue): void;
+  analogRead(): number;
+  analogWrite(value: number): void;
+  pwm(value: number): void;
 }
 
 export class SerialPort {
@@ -31,6 +35,7 @@ export class Ino {
   serial(): SerialPort;
   delay(ms: number): void;
   millis(): number;
+  micros(): number;
 }
 
 export { Ino as Core };

@@ -4,6 +4,8 @@ import { generateArduinoCpp, type Diagnostic } from "@inojs/generator";
 import { parse } from "@inojs/parser";
 import { generatePlatformIOIni, type PlatformIOConfig } from "@inojs/platformio";
 
+export type { Diagnostic } from "@inojs/generator";
+
 export interface CompileOptions {
   cwd: string;
   entry?: string;

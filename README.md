@@ -9,6 +9,8 @@ This repository currently contains the first MVP slice:
 - Babel-based JS/TS parser
 - Arduino C++ generator
 - PlatformIO project generator
+- compiler snapshot tests
+- diagnostics with source line and column
 - minimal `ino` CLI
 - blink example
 
@@ -74,12 +76,19 @@ void loop() {
 - `led.high()`
 - `led.low()`
 - `led.toggle()`
+- `led.write(true | false | 1 | 0)`
+- `led.inputPullup()`
+- `led.analogRead()`
+- `led.analogWrite(value)`
+- `led.pwm(value)`
 - `const serial = core.serial()`
 - `serial.begin(115200)`
 - `serial.print(...)`
 - `serial.println(...)`
+- `new Ino({ serialMonitor: true, baudRate: 115200 })`
 - `core.delay(ms)`
 - `core.millis()`
+- `core.micros()`
 - simple variables, literals, binary expressions, logical expressions, unary expressions, and `if`
 
 ## Project Config
@@ -103,12 +112,15 @@ ino build
 ino upload
 ino monitor
 ino doctor
+ino doctor --fix
 ```
+
+`ino doctor` checks PlatformIO, Python, and the VSCode CLI. If PlatformIO is missing, it can offer installation through Python/pip or the PlatformIO IDE VSCode extension.
 
 ## Next Compiler Steps
 
-1. Add diagnostics with source locations.
-2. Support `pin.read()` as an expression.
-3. Add analog I/O APIs.
-4. Introduce a plugin contribution model for includes, globals, setup, loop, dependencies, and diagnostics.
-5. Add a test suite for JS/TS input to generated C++ snapshots.
+1. Improve diagnostics from warnings into blocking errors where appropriate.
+2. Add board-aware pin validation.
+3. Introduce a plugin contribution model for includes, globals, setup, loop, dependencies, and diagnostics.
+4. Implement the first official plugin, likely Servo.
+5. Add `ino add` and `ino remove` for plugin/module installation.
