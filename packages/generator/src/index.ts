@@ -171,6 +171,8 @@ function statementToCpp(statement: Statement, context: Context): string[] {
       if (isCoreCall(statement.expression, "log", context)) {
         return coreLogToCpp(statement.expression, context);
       }
+      const serialLog = serialLogCallToCpp(statement.expression, context);
+      if (serialLog) return serialLog;
     }
     return [`${expressionStatementToCpp(statement.expression, context)};`];
   }
@@ -230,6 +232,8 @@ function expressionToCpp(expression: Node, context: Context): string {
       return String(expression.value);
     case "StringLiteral":
       return JSON.stringify(expression.value);
+    case "TemplateLiteral":
+      return templateLiteralToCpp(expression, context);
     case "BooleanLiteral":
       return expression.value ? "true" : "false";
     case "Identifier":
@@ -483,6 +487,23 @@ function getEverySchedule(
 function coreLogToCpp(call: CallExpression, context: Context): string[] {
   context.autoSerialBegin ??= "115200";
 
+  return serialLogToCpp(call, context, { separator: " " });
+}
+
+function serialLogCallToCpp(call: CallExpression, context: Context): string[] | undefined {
+  if (call.callee.type !== "MemberExpression" || call.callee.property.type !== "Identifier") return undefined;
+  if (call.callee.property.name !== "log") return undefined;
+
+  const object = call.callee.object;
+  const isSerialAlias = object.type === "Identifier" && context.serialAliases.has(object.name);
+  const isCoreSerial = object.type === "CallExpression" && isCoreCall(object, "serial", context);
+  if (!isSerialAlias && !isCoreSerial) return undefined;
+
+  context.autoSerialBegin ??= "115200";
+  return serialLogToCpp(call, context);
+}
+
+function serialLogToCpp(call: CallExpression, context: Context, options: { separator?: string } = {}): string[] {
   if (!call.arguments.length) return ["Serial.println();"];
 
   const lines: string[] = [];
@@ -490,9 +511,24 @@ function coreLogToCpp(call: CallExpression, context: Context): string[] {
     const argument = expressionToCpp(call.arguments[index], context);
     const isLast = index === call.arguments.length - 1;
     lines.push(`${isLast ? "Serial.println" : "Serial.print"}(${argument});`);
-    if (!isLast) lines.push('Serial.print(" ");');
+    if (!isLast && options.separator !== undefined) lines.push(`Serial.print(${JSON.stringify(options.separator)});`);
   }
   return lines;
+}
+
+function templateLiteralToCpp(expression: Extract<Node, { type: "TemplateLiteral" }>, context: Context): string {
+  const parts: string[] = [];
+
+  for (let index = 0; index < expression.quasis.length; index += 1) {
+    const text = expression.quasis[index].value.cooked ?? expression.quasis[index].value.raw;
+    if (text) parts.push(JSON.stringify(text));
+
+    const embeddedExpression = expression.expressions[index];
+    if (embeddedExpression) parts.push(expressionToCpp(embeddedExpression, context));
+  }
+
+  if (!parts.length) return '""';
+  return parts.map((part, index) => index === 0 ? part : `String(${part})`).join(" + ");
 }
 
 function memberExpressionToCpp(expression: Extract<Node, { type: "MemberExpression" }>, context: Context): string {

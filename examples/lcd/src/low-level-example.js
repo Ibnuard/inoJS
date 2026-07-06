@@ -1,18 +1,19 @@
-// High-level example: updates the display on a non-blocking schedule.
+// Low-level example: uses explicit setup/loop, cursor control, and blocking delay.
 import { Ino } from "@inojs/core";
 import { LCD } from "@inojs/lcd";
 
 const core = new Ino();
 const lcd = new LCD(0x27, 16, 2);
 
-core.init(() => {
+core.setup(() => {
   lcd.begin();
   lcd.backlight();
   lcd.setCursor(0, 0);
   lcd.print("Hello inoJS");
 });
 
-core.every("clock", 1000, () => {
+core.loop(() => {
   lcd.setCursor(0, 1);
   lcd.print(core.millis());
+  core.delay(1000);
 });

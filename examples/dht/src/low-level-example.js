@@ -1,4 +1,4 @@
-// High-level example: reads the sensor on a schedule and logs template strings.
+// Low-level example: uses explicit setup/loop, serial print calls, and blocking delay.
 import { Ino } from "@inojs/core";
 import { DHT } from "@inojs/dht";
 
@@ -6,14 +6,17 @@ const core = new Ino({ serialMonitor: true, baudRate: 115200 });
 const serial = core.serial();
 const sensor = new DHT(2, "DHT22");
 
-core.init(() => {
+core.setup(() => {
   sensor.begin();
 });
 
-core.every("readSensor", 2000, () => {
+core.loop(() => {
   const temperature = sensor.readTemperature();
   const humidity = sensor.readHumidity();
 
-  serial.log(`Temperature: ${temperature}`);
-  serial.log(`Humidity: ${humidity}`);
+  serial.print("Temperature: ");
+  serial.println(temperature);
+  serial.print("Humidity: ");
+  serial.println(humidity);
+  core.delay(2000);
 });

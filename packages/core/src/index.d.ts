@@ -27,6 +27,7 @@ export class SerialPort {
   begin(baudRate: number): void;
   print(value: string | number | boolean): void;
   println(value: string | number | boolean): void;
+  log(...values: LogValue[]): void;
 }
 
 export type TaskCallback = () => void;

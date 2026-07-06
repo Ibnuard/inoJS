@@ -1,17 +1,16 @@
+// High-level example: uses inoJS init/every and core.log for non-blocking sampling.
 import { Ino } from "@inojs/core";
 
 const core = new Ino({ serialMonitor: true, baudRate: 115200 });
 const sensor = core.pin(34);
-const led = core.pin(5);
-const serial = core.serial();
+const led = core.led(5);
 
-core.setup(() => {
+core.init(() => {
   led.output();
 });
 
-core.loop(() => {
+core.every("sample", 50, () => {
   const value = sensor.analogRead();
   led.pwm(value);
-  serial.println(value);
-  core.delay(50);
+  core.log(value);
 });

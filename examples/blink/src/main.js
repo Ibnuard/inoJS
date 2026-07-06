@@ -1,3 +1,4 @@
+// High-level example: uses inoJS init/every and a semantic LED helper.
 import { Ino } from "@inojs/core";
 
 const core = new Ino();

@@ -251,4 +251,51 @@ describe("Arduino C++ generator", () => {
       "
     `);
   });
+
+  it("generates serial.log as print calls with a newline at the end", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      const serial = core.serial();
+
+      core.app(() => {
+        const value = core.millis();
+        serial.log("Temp ", value);
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toMatchInlineSnapshot(`
+      "#include <Arduino.h>
+
+      void setup() {
+        Serial.begin(115200);
+      }
+
+      void loop() {
+        auto value = millis();
+        Serial.print("Temp ");
+        Serial.println(value);
+      }
+      "
+    `);
+  });
+
+  it("generates template literals for serial logging", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      const serial = core.serial();
+
+      core.app(() => {
+        const value = core.millis();
+        serial.log(\`Temp \${value}\`);
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain('Serial.println("Temp " + String(value));');
+  });
 });

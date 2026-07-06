@@ -26,6 +26,7 @@ export class SerialPort {
   begin() {}
   print() {}
   println() {}
+  log() {}
 }
 
 export class Ino {
