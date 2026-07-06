@@ -12,7 +12,9 @@ export class Pin {
   input(): void;
   inputPullup(): void;
   high(): void;
+  on(): void;
   low(): void;
+  off(): void;
   toggle(): void;
   read(): boolean;
   write(value: PinValue): void;
@@ -27,12 +29,21 @@ export class SerialPort {
   println(value: string | number | boolean): void;
 }
 
+export type TaskCallback = () => void;
+export type LogValue = string | number | boolean;
+
 export class Ino {
   constructor(options?: InitOptions);
+  init(callback: TaskCallback): void;
+  app(callback: TaskCallback): void;
   setup(callback: () => void): void;
   loop(callback: () => void): void;
   pin(pinNumber: number): Pin;
+  led(pinNumber: number): Pin;
   serial(): SerialPort;
+  every(ms: number, callback: TaskCallback): void;
+  every(name: string, ms: number, callback: TaskCallback): void;
+  log(...values: LogValue[]): void;
   delay(ms: number): void;
   millis(): number;
   micros(): number;

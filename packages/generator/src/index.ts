@@ -81,12 +81,16 @@ export function generateArduinoCpp(ast: File, options: GenerateOptions = {}): Ge
 
     if (statement.type === "ExpressionStatement" && statement.expression.type === "CallExpression") {
       const call = statement.expression;
-      if (isCoreLifecycleCall(call, "setup", context)) {
+      if (isCoreLifecycleCall(call, "setup", context) || isCoreLifecycleCall(call, "init", context)) {
         setupStatements.push(...blockToCpp(getLifecycleBlock(call), context));
         continue;
       }
-      if (isCoreLifecycleCall(call, "loop", context)) {
+      if (isCoreLifecycleCall(call, "loop", context) || isCoreLifecycleCall(call, "app", context)) {
         loopStatements.push(...blockToCpp(getLifecycleBlock(call), context));
+        continue;
+      }
+      if (isCoreCall(call, "every", context)) {
+        loopStatements.push(...coreEveryToCpp(call, context));
         continue;
       }
     }
@@ -138,7 +142,7 @@ function collectTopLevelDeclaration(statement: Extract<Statement, { type: "Varia
       continue;
     }
 
-    const pin = getCoreCallArgument(declaration.init, "pin", context);
+    const pin = getCoreCallArgument(declaration.init, "pin", context) ?? getCoreCallArgument(declaration.init, "led", context);
     if (pin) {
       context.pins.set(declaration.id.name, expressionToCpp(pin, context));
       continue;
@@ -146,7 +150,10 @@ function collectTopLevelDeclaration(statement: Extract<Statement, { type: "Varia
 
     if (isCoreCall(declaration.init, "serial", context)) {
       context.serialAliases.add(declaration.id.name);
+      continue;
     }
+
+    context.globals.push(`auto ${declaration.id.name} = ${expressionToCpp(declaration.init, context)};`);
   }
 }
 
@@ -157,6 +164,14 @@ function blockToCpp(block: BlockStatement | undefined, context: Context): string
 
 function statementToCpp(statement: Statement, context: Context): string[] {
   if (statement.type === "ExpressionStatement") {
+    if (statement.expression.type === "CallExpression") {
+      if (isCoreCall(statement.expression, "every", context)) {
+        return coreEveryToCpp(statement.expression, context);
+      }
+      if (isCoreCall(statement.expression, "log", context)) {
+        return coreLogToCpp(statement.expression, context);
+      }
+    }
     return [`${expressionStatementToCpp(statement.expression, context)};`];
   }
 
@@ -184,6 +199,10 @@ function statementToCpp(statement: Statement, context: Context): string[] {
       lines.push("else {", ...indent(alternate), "}");
     }
     return lines;
+  }
+
+  if (statement.type === "ReturnStatement") {
+    return statement.argument ? [`return ${expressionToCpp(statement.argument, context)};`] : ["return;"];
   }
 
   unsupported(context, `Unsupported statement in setup/loop: ${statement.type}`, statement);
@@ -215,11 +234,19 @@ function expressionToCpp(expression: Node, context: Context): string {
       return expression.value ? "true" : "false";
     case "Identifier":
       return expression.name;
+    case "MemberExpression":
+      return memberExpressionToCpp(expression, context);
     case "BinaryExpression":
     case "LogicalExpression":
       return `${expressionToCpp(expression.left, context)} ${expression.operator} ${expressionToCpp(expression.right, context)}`;
     case "UnaryExpression":
       return `${expression.operator}${expressionToCpp(expression.argument, context)}`;
+    case "UpdateExpression": {
+      const argument = expressionToCpp(expression.argument, context);
+      return expression.prefix ? `${expression.operator}${argument}` : `${argument}${expression.operator}`;
+    }
+    case "AssignmentExpression":
+      return `${expressionToCpp(expression.left, context)} ${expression.operator} ${expressionToCpp(expression.right, context)}`;
     case "CallExpression": {
       const pluginCall = pluginMethodCall(expression, context);
       if (pluginCall) return pluginCall;
@@ -231,6 +258,10 @@ function expressionToCpp(expression: Node, context: Context): string {
       if (coreDelay) return `delay(${expressionToCpp(coreDelay, context)})`;
       if (isCoreCall(expression, "millis", context)) return "millis()";
       if (isCoreCall(expression, "micros", context)) return "micros()";
+      if (isCoreCall(expression, "log", context)) {
+        unsupported(context, "core.log() can only be used as a statement.", expression);
+        return "/* unsupported core.log */";
+      }
       if (isIdentifierCall(expression, "delay")) return `delay(${joinArgs(expression, context)})`;
       if (isIdentifierCall(expression, "millis")) return "millis()";
       if (isIdentifierCall(expression, "micros")) return "micros()";
@@ -275,8 +306,10 @@ function pinMethodCall(call: CallExpression, context: Context): string | undefin
     case "inputPullup":
       return `pinMode(${pin}, INPUT_PULLUP)`;
     case "high":
+    case "on":
       return `digitalWrite(${pin}, HIGH)`;
     case "low":
+    case "off":
       return `digitalWrite(${pin}, LOW)`;
     case "toggle":
       return `digitalWrite(${pin}, !digitalRead(${pin}))`;
@@ -313,7 +346,7 @@ function serialMethodCall(call: CallExpression, context: Context): string | unde
   }
 }
 
-function isCoreLifecycleCall(call: CallExpression, name: "setup" | "loop", context: Context): boolean {
+function isCoreLifecycleCall(call: CallExpression, name: "setup" | "loop" | "init" | "app", context: Context): boolean {
   return call.callee.type === "MemberExpression"
     && call.callee.object.type === "Identifier"
     && context.coreAliases.has(call.callee.object.name)
@@ -404,6 +437,68 @@ function isIdentifierCall(expression: CallExpression, name: string): boolean {
 
 function joinArgs(call: CallExpression, context: Context): string {
   return call.arguments.map((argument) => expressionToCpp(argument, context)).join(", ");
+}
+
+function coreEveryToCpp(call: CallExpression, context: Context): string[] {
+  const schedule = getEverySchedule(call, context);
+  if (!schedule) {
+    unsupported(context, "core.every() expects (ms, callback) or (name, ms, callback).", call);
+    return ["/* unsupported core.every */"];
+  }
+
+  const lastRunSymbol = uniqueCppSymbol(context, schedule.name, "inojs_every");
+  context.globals.push(`unsigned long ${lastRunSymbol} = 0;`);
+
+  return [
+    `if (millis() - ${lastRunSymbol} >= ${schedule.interval}) {`,
+    ...indent([
+      `${lastRunSymbol} = millis();`,
+      ...blockToCpp(schedule.block, context)
+    ]),
+    "}"
+  ];
+}
+
+function getEverySchedule(
+  call: CallExpression,
+  context: Context
+): { name: string; interval: string; block: BlockStatement } | undefined {
+  const [first, second, third] = call.arguments;
+  const hasName = first?.type === "StringLiteral";
+  const name = hasName ? first.value : "task";
+  const intervalNode = hasName ? second : first;
+  const callback = hasName ? third : second;
+
+  if (!intervalNode || !callback || callback.type !== "ArrowFunctionExpression") return undefined;
+  const block = arrowBodyToBlock(callback);
+  if (!block) return undefined;
+
+  return {
+    name,
+    interval: expressionToCpp(intervalNode, context),
+    block
+  };
+}
+
+function coreLogToCpp(call: CallExpression, context: Context): string[] {
+  context.autoSerialBegin ??= "115200";
+
+  if (!call.arguments.length) return ["Serial.println();"];
+
+  const lines: string[] = [];
+  for (let index = 0; index < call.arguments.length; index += 1) {
+    const argument = expressionToCpp(call.arguments[index], context);
+    const isLast = index === call.arguments.length - 1;
+    lines.push(`${isLast ? "Serial.println" : "Serial.print"}(${argument});`);
+    if (!isLast) lines.push('Serial.print(" ");');
+  }
+  return lines;
+}
+
+function memberExpressionToCpp(expression: Extract<Node, { type: "MemberExpression" }>, context: Context): string {
+  const object = expressionToCpp(expression.object, context);
+  if (expression.property.type === "Identifier" && !expression.computed) return `${object}.${expression.property.name}`;
+  return `${object}[${expressionToCpp(expression.property, context)}]`;
 }
 
 function indent(lines: string[]): string[] {

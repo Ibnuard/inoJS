@@ -130,4 +130,125 @@ describe("Arduino C++ generator", () => {
       }
     ]);
   });
+
+  it("generates init/app lifecycle aliases", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      const led = core.pin(13);
+
+      core.init(() => {
+        led.output();
+      });
+
+      core.app(() => {
+        led.toggle();
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toMatchInlineSnapshot(`
+      "#include <Arduino.h>
+
+      void setup() {
+        pinMode(13, OUTPUT);
+      }
+
+      void loop() {
+        digitalWrite(13, !digitalRead(13));
+      }
+      "
+    `);
+  });
+
+  it("generates non-blocking every tasks", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      const led = core.led(13);
+
+      core.init(() => {
+        led.output();
+      });
+
+      core.app(() => {
+        core.every("blink", 1000, () => {
+          led.toggle();
+        });
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toMatchInlineSnapshot(`
+      "#include <Arduino.h>
+
+      unsigned long inojs_every_blink = 0;
+
+      void setup() {
+        pinMode(13, OUTPUT);
+      }
+
+      void loop() {
+        if (millis() - inojs_every_blink >= 1000) {
+          inojs_every_blink = millis();
+          digitalWrite(13, !digitalRead(13));
+        }
+      }
+      "
+    `);
+  });
+
+  it("generates top-level every tasks", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      const led = core.led(13);
+
+      core.init(() => {
+        led.output();
+      });
+
+      core.every(500, () => {
+        led.on();
+        led.off();
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("unsigned long inojs_every_task = 0;");
+    expect(result.code).toContain("if (millis() - inojs_every_task >= 500) {");
+    expect(result.code).toContain("digitalWrite(13, HIGH);");
+    expect(result.code).toContain("digitalWrite(13, LOW);");
+  });
+
+  it("generates core.log with automatic Serial.begin", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+
+      core.app(() => {
+        core.log("Millis", core.millis());
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toMatchInlineSnapshot(`
+      "#include <Arduino.h>
+
+      void setup() {
+        Serial.begin(115200);
+      }
+
+      void loop() {
+        Serial.print("Millis");
+        Serial.print(" ");
+        Serial.println(millis());
+      }
+      "
+    `);
+  });
 });

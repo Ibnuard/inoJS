@@ -7,7 +7,9 @@ export class Pin {
   input() {}
   inputPullup() {}
   high() {}
+  on() {}
   low() {}
+  off() {}
   toggle() {}
   read() {
     return false;
@@ -29,14 +31,21 @@ export class SerialPort {
 export class Ino {
   constructor() {}
 
+  init() {}
+  app() {}
   setup() {}
   loop() {}
   pin(pinNumber) {
     return new Pin(pinNumber);
   }
+  led(pinNumber) {
+    return new Pin(pinNumber);
+  }
   serial() {
     return new SerialPort();
   }
+  every() {}
+  log() {}
   delay() {}
   millis() {
     return 0;

@@ -5,11 +5,11 @@ const core = new Ino({ serialMonitor: true, baudRate: 115200 });
 const serial = core.serial();
 const sensor = new DHT(2, "DHT22");
 
-core.setup(() => {
+core.init(() => {
   sensor.begin();
 });
 
-core.loop(() => {
+core.every("readSensor", 2000, () => {
   const temperature = sensor.readTemperature();
   const humidity = sensor.readHumidity();
 
@@ -17,5 +17,4 @@ core.loop(() => {
   serial.println(temperature);
   serial.print("Humidity: ");
   serial.println(humidity);
-  core.delay(2000);
 });

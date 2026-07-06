@@ -1,13 +1,12 @@
 import { Ino } from "@inojs/core";
 
 const core = new Ino();
-const led = core.pin(13);
+const led = core.led(13);
 
-core.setup(() => {
+core.init(() => {
   led.output();
 });
 
-core.loop(() => {
+core.every("blink", 1000, () => {
   led.toggle();
-  core.delay(1000);
 });
