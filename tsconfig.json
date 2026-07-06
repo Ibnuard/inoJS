@@ -9,6 +9,7 @@
     { "path": "./packages/core" },
     { "path": "./packages/types" },
     { "path": "./plugins/servo" },
+    { "path": "./plugins/dht" },
     { "path": "./apps/cli" }
   ]
 }

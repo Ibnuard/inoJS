@@ -43,6 +43,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
 
+  examples/dht:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@inojs/dht':
+        specifier: workspace:*
+        version: link:../../plugins/dht
+
   examples/servo:
     dependencies:
       '@inojs/core':
@@ -54,6 +63,9 @@ importers:
 
   packages/compiler:
     dependencies:
+      '@inojs/dht':
+        specifier: workspace:*
+        version: link:../../plugins/dht
       '@inojs/generator':
         specifier: workspace:*
         version: link:../generator
@@ -63,10 +75,16 @@ importers:
       '@inojs/platformio':
         specifier: workspace:*
         version: link:../platformio
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
       '@inojs/servo':
         specifier: workspace:*
         version: link:../../plugins/servo
     devDependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
@@ -121,6 +139,19 @@ importers:
 
   packages/types:
     devDependencies:
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  plugins/dht:
+    dependencies:
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+    devDependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
       typescript:
         specifier: ^5.8.0
         version: 5.9.3

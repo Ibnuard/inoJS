@@ -46,6 +46,7 @@ interface Context {
   loopContributions: string[];
   libDeps: Set<string>;
   pluginBindings: Map<string, PluginBinding>;
+  cppSymbols: Set<string>;
   plugins: InoPlugin[];
 }
 
@@ -63,6 +64,7 @@ export function generateArduinoCpp(ast: File, options: GenerateOptions = {}): Ge
     loopContributions: [],
     libDeps: new Set(),
     pluginBindings: new Map(),
+    cppSymbols: new Set(),
     plugins
   };
 
@@ -219,6 +221,8 @@ function expressionToCpp(expression: Node, context: Context): string {
     case "UnaryExpression":
       return `${expression.operator}${expressionToCpp(expression.argument, context)}`;
     case "CallExpression": {
+      const pluginCall = pluginMethodCall(expression, context);
+      if (pluginCall) return pluginCall;
       const analogRead = analogReadExpression(expression, context);
       if (analogRead) return analogRead;
       const pinRead = pinReadExpression(expression, context);
@@ -438,6 +442,9 @@ function createPluginContext(context: Context): PluginContext {
     getBinding(name) {
       return context.pluginBindings.get(name);
     },
+    uniqueSymbol(name, prefix) {
+      return uniqueCppSymbol(context, name, prefix);
+    },
     expressionToCpp(expression) {
       return expressionToCpp(expression, context);
     },
@@ -445,6 +452,18 @@ function createPluginContext(context: Context): PluginContext {
       reportPluginDiagnostic(context, diagnostic);
     }
   };
+}
+
+function uniqueCppSymbol(context: Context, name: string, prefix = "inojs"): string {
+  const base = `${prefix}_${name}`.replace(/[^a-zA-Z0-9_]/g, "_");
+  let candidate = base;
+  let suffix = 2;
+  while (context.cppSymbols.has(candidate)) {
+    candidate = `${base}_${suffix}`;
+    suffix += 1;
+  }
+  context.cppSymbols.add(candidate);
+  return candidate;
 }
 
 function reportPluginDiagnostic(context: Context, diagnostic: PluginDiagnostic): void {

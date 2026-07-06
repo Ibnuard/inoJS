@@ -20,12 +20,15 @@ export interface PluginContext {
   addLibDep(dependency: string): void;
   bindSymbol(name: string, binding: PluginBinding): void;
   getBinding(name: string): PluginBinding | undefined;
+  uniqueSymbol(name: string, prefix?: string): string;
   expressionToCpp(expression: Node): string;
   report(diagnostic: PluginDiagnostic): void;
 }
 
 export interface InoPlugin {
   name: string;
+  packageName?: string;
+  symbols?: string[];
   analyzeDeclaration?(declaration: VariableDeclarator, context: PluginContext): boolean;
   generateCall?(call: CallExpression, context: PluginContext): string | undefined;
 }
