@@ -160,4 +160,32 @@ describe("Servo plugin", () => {
     expect(result.code).toContain("servo_arm_.attach(9);");
     expect(result.code).toContain("servo_arm__2.attach(10);");
   });
+
+  it("reports board-aware Servo pin validation errors", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+      import { Servo } from "@inojs/servo";
+
+      const core = new Ino();
+      const arm = new Servo(99);
+
+      core.init(() => {
+        arm.attach();
+      });
+
+      core.app(() => {});
+    `, [servoPlugin], { board: "uno" });
+
+    expect(result.diagnostics).toEqual([
+      {
+        level: "error",
+        message: "Pin 99 is not valid for board uno.",
+        location: {
+          filename: "src/main.js",
+          line: 6,
+          column: 29
+        }
+      }
+    ]);
+  });
 });

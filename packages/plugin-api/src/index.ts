@@ -21,6 +21,7 @@ export interface PluginContext {
   bindSymbol(name: string, binding: PluginBinding): void;
   getBinding(name: string): PluginBinding | undefined;
   uniqueSymbol(name: string, prefix?: string): string;
+  validatePin(expression: Node | undefined | null): void;
   expressionToCpp(expression: Node): string;
   report(diagnostic: PluginDiagnostic): void;
 }

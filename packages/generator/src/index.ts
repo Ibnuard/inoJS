@@ -16,6 +16,7 @@ import {
   type Diagnostic,
   type DiagnosticLocation
 } from "./context.js";
+import { validatePinExpression } from "./boards.js";
 
 export type { Diagnostic, DiagnosticLocation } from "./context.js";
 
@@ -27,11 +28,12 @@ export interface GenerateResult {
 
 export interface GenerateOptions {
   plugins?: InoPlugin[];
+  board?: string;
 }
 
 export function generateArduinoCpp(ast: File, options: GenerateOptions = {}): GenerateResult {
   const plugins = options.plugins ?? [];
-  const context = createContext(plugins);
+  const context = createContext(plugins, options.board);
 
   const setupStatements: string[] = [];
   const loopStatements: string[] = [];
@@ -114,6 +116,7 @@ function collectTopLevelDeclaration(statement: Extract<Statement, { type: "Varia
 
     const pin = getCoreCallArgument(declaration.init, "pin", context) ?? getCoreCallArgument(declaration.init, "led", context);
     if (pin) {
+      validatePin(pin, context);
       context.pins.set(declaration.id.name, expressionToCpp(pin, context));
       continue;
     }
@@ -470,6 +473,7 @@ function getButtonBinding(expression: Node, context: Context) {
   const pin = args[0];
   const options = args[1];
   const pullup = getBooleanOption(options, "pullup");
+  validatePin(pin, context);
 
   return {
     pin: pin ? expressionToCpp(pin, context) : "0",
@@ -633,8 +637,13 @@ function createPluginContext(context: Context) {
   return createPluginApiContext(
     context,
     (expression) => expressionToCpp(expression, context),
+    (expression) => validatePin(expression, context),
     (diagnostic) => reportPluginDiagnostic(context, diagnostic)
   );
+}
+
+function validatePin(expression: Node | undefined | null, context: Context): void {
+  validatePinExpression(expression, context, locationOf);
 }
 
 function reportPluginDiagnostic(context: Context, diagnostic: PluginDiagnostic): void {

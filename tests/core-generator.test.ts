@@ -381,4 +381,42 @@ describe("Arduino C++ generator", () => {
       "
     `);
   });
+
+  it("reports board-aware pin validation errors for core pins and buttons", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      const led = core.led(99);
+      const button = core.button(20, { pullup: true });
+
+      core.init(() => {
+        led.output();
+        button.init();
+      });
+
+      core.app(() => {});
+    `, [], { board: "uno" });
+
+    expect(result.diagnostics).toEqual([
+      {
+        level: "error",
+        message: "Pin 99 is not valid for board uno.",
+        location: {
+          filename: "src/main.js",
+          line: 5,
+          column: 28
+        }
+      },
+      {
+        level: "error",
+        message: "Pin 20 is not valid for board uno.",
+        location: {
+          filename: "src/main.js",
+          line: 6,
+          column: 34
+        }
+      }
+    ]);
+  });
 });

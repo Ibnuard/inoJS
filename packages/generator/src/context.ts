@@ -16,6 +16,7 @@ export interface DiagnosticLocation {
 }
 
 export interface Context {
+  board?: string;
   diagnostics: Diagnostic[];
   coreAliases: Set<string>;
   pins: Map<string, string>;
@@ -39,8 +40,9 @@ export interface ButtonBinding {
   pressedLevel: "HIGH" | "LOW";
 }
 
-export function createContext(plugins: InoPlugin[]): Context {
+export function createContext(plugins: InoPlugin[], board?: string): Context {
   return {
+    board,
     diagnostics: [],
     coreAliases: new Set(["core"]),
     pins: new Map(),
@@ -61,6 +63,7 @@ export function createContext(plugins: InoPlugin[]): Context {
 export function createPluginContext(
   context: Context,
   expressionToCpp: (expression: Node) => string,
+  validatePin: (expression: Node | undefined | null) => void,
   report: (diagnostic: PluginDiagnostic) => void
 ): PluginContext {
   return {
@@ -88,6 +91,7 @@ export function createPluginContext(
     uniqueSymbol(name, prefix) {
       return uniqueCppSymbol(context, name, prefix);
     },
+    validatePin,
     expressionToCpp,
     report
   };

@@ -1,15 +1,12 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { dhtPlugin } from "@inojs/dht";
 import { generateArduinoCpp, type Diagnostic } from "@inojs/generator";
-import { lcdPlugin } from "@inojs/lcd";
 import { parse } from "@inojs/parser";
 import { generatePlatformIOIni, type PlatformIOConfig } from "@inojs/platformio";
-import { servoPlugin } from "@inojs/servo";
-import type { File } from "@babel/types";
-import type { InoPlugin } from "@inojs/plugin-api";
+import { resolveProjectPlugins } from "./plugins.js";
 
 export type { Diagnostic } from "@inojs/generator";
+export { resolveProjectPlugins } from "./plugins.js";
 
 export interface CompileOptions {
   cwd: string;
@@ -31,17 +28,23 @@ export async function compileProject(options: CompileOptions): Promise<CompileRe
   const sourcePath = join(options.cwd, entry);
   const source = await readFile(sourcePath, "utf8");
   const parsed = parse(source, { filename: sourcePath });
-  const generated = generateArduinoCpp(parsed.ast, { plugins: resolveProjectPlugins(parsed.ast) });
+  const platformio = {
+    board: "uno",
+    ...config,
+    ...options.platformio
+  };
+  const generated = generateArduinoCpp(parsed.ast, {
+    plugins: resolveProjectPlugins(parsed.ast),
+    board: platformio.board
+  });
 
   const generatedCppPath = join(options.cwd, outDir, "src/main.cpp");
   const platformioIniPath = join(options.cwd, outDir, "platformio.ini");
 
   await mkdir(dirname(generatedCppPath), { recursive: true });
   await writeFile(generatedCppPath, generated.code, "utf8");
-  const platformio = {
-    board: "uno",
-    ...config,
-    ...options.platformio,
+  const platformioWithDeps = {
+    ...platformio,
     libDeps: unique([
       ...(config.libDeps ?? []),
       ...generated.libDeps,
@@ -49,50 +52,13 @@ export async function compileProject(options: CompileOptions): Promise<CompileRe
     ])
   };
 
-  await writeFile(platformioIniPath, generatePlatformIOIni(platformio), "utf8");
+  await writeFile(platformioIniPath, generatePlatformIOIni(platformioWithDeps), "utf8");
 
   return {
     generatedCppPath,
     platformioIniPath,
     diagnostics: generated.diagnostics
   };
-}
-
-const pluginRegistry: InoPlugin[] = [
-  dhtPlugin,
-  lcdPlugin,
-  servoPlugin
-];
-
-export function resolveProjectPlugins(ast: File, registry: InoPlugin[] = pluginRegistry): InoPlugin[] {
-  const imports = new Map<string, Set<string>>();
-
-  for (const statement of ast.program.body) {
-    if (statement.type !== "ImportDeclaration") continue;
-    const source = statement.source.value;
-    const symbols = imports.get(source) ?? new Set<string>();
-
-    for (const specifier of statement.specifiers) {
-      if (specifier.type === "ImportSpecifier") {
-        const imported = specifier.imported;
-        symbols.add(imported.type === "Identifier" ? imported.name : imported.value);
-      } else if (specifier.type === "ImportDefaultSpecifier") {
-        symbols.add("default");
-      } else if (specifier.type === "ImportNamespaceSpecifier") {
-        symbols.add("*");
-      }
-    }
-
-    imports.set(source, symbols);
-  }
-
-  return registry.filter((plugin) => {
-    const packageName = plugin.packageName ?? plugin.name;
-    const importedSymbols = imports.get(packageName);
-    if (!importedSymbols) return false;
-    if (!plugin.symbols?.length) return true;
-    return plugin.symbols.some((symbol) => importedSymbols.has(symbol) || importedSymbols.has("*"));
-  });
 }
 
 function unique(values: string[]): string[] {

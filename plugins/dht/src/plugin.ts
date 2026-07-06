@@ -13,6 +13,7 @@ export const dhtPlugin: InoPlugin = {
     const type = declaration.init.arguments[1];
     const cppName = context.uniqueSymbol(name, "dht");
 
+    context.validatePin(pin);
     if (!pin) {
       context.report({
         level: "error",

@@ -12,6 +12,7 @@ export const servoPlugin: InoPlugin = {
     const pin = declaration.init.arguments[0];
     const cppName = context.uniqueSymbol(name, "servo");
 
+    context.validatePin(pin);
     context.addInclude("Servo.h");
     context.addGlobal(`Servo ${cppName};`);
     context.addLibDep("arduino-libraries/Servo");
