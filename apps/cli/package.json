@@ -1,0 +1,21 @@
+{
+  "name": "ino",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "ino": "./dist/src/index.js"
+  },
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@inojs/compiler": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  }
+}
