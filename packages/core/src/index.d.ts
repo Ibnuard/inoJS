@@ -5,6 +5,10 @@ export interface InitOptions {
   baudRate?: number;
 }
 
+export interface ButtonOptions {
+  pullup?: boolean;
+}
+
 export class Pin {
   readonly pinNumber: number;
   constructor(pinNumber: number);
@@ -21,6 +25,14 @@ export class Pin {
   analogRead(): number;
   analogWrite(value: number): void;
   pwm(value: number): void;
+}
+
+export class Button {
+  readonly pinNumber: number;
+  constructor(pinNumber: number, options?: ButtonOptions);
+  init(): void;
+  isPressed(): boolean;
+  onPress(callback: TaskCallback): void;
 }
 
 export class SerialPort {
@@ -41,6 +53,7 @@ export class Ino {
   loop(callback: () => void): void;
   pin(pinNumber: number): Pin;
   led(pinNumber: number): Pin;
+  button(pinNumber: number, options?: ButtonOptions): Button;
   serial(): SerialPort;
   every(ms: number, callback: TaskCallback): void;
   every(name: string, ms: number, callback: TaskCallback): void;

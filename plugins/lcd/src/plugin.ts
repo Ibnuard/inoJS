@@ -13,13 +13,17 @@ export const lcdPlugin: InoPlugin = {
     const columns = declaration.init.arguments[1];
     const rows = declaration.init.arguments[2];
     const cppName = context.uniqueSymbol(name, "lcd");
+    const columnsCpp = expressionOrDefault(columns, "16", context);
 
     context.addInclude("LiquidCrystal_I2C.h");
-    context.addGlobal(`LiquidCrystal_I2C ${cppName}(${expressionOrDefault(address, "0x27", context)}, ${expressionOrDefault(columns, "16", context)}, ${expressionOrDefault(rows, "2", context)});`);
+    context.addGlobal(`LiquidCrystal_I2C ${cppName}(${expressionOrDefault(address, "0x27", context)}, ${columnsCpp}, ${expressionOrDefault(rows, "2", context)});`);
     context.addLibDep("marcoschwartz/LiquidCrystal_I2C");
     context.bindSymbol(name, {
       plugin: "@inojs/lcd",
-      cppName
+      cppName,
+      data: {
+        columns: columnsCpp
+      }
     });
 
     return true;
@@ -36,8 +40,25 @@ export const lcdPlugin: InoPlugin = {
     switch (call.callee.property.name) {
       case "begin":
         return `${binding.cppName}.init()`;
+      case "start":
+        return [
+          `${binding.cppName}.init()`,
+          `${binding.cppName}.backlight()`
+        ].join(";\n");
       case "clear":
         return `${binding.cppName}.clear()`;
+      case "line": {
+        const row = call.arguments[0] ? context.expressionToCpp(call.arguments[0]) : "0";
+        const value = call.arguments[1] ? context.expressionToCpp(call.arguments[1]) : '""';
+        const columns = binding.data?.columns ?? "16";
+        const blankLine = JSON.stringify(" ".repeat(Number.parseInt(columns, 10) || 1));
+        return [
+          `${binding.cppName}.setCursor(0, ${row})`,
+          `${binding.cppName}.print(${blankLine})`,
+          `${binding.cppName}.setCursor(0, ${row})`,
+          `${binding.cppName}.print(${value})`
+        ].join(";\n");
+      }
       case "setCursor":
         return `${binding.cppName}.setCursor(${args})`;
       case "print":

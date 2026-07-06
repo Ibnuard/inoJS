@@ -69,6 +69,32 @@ describe("LCD plugin", () => {
     expect(result.code).toContain("lcd_screen.init();");
   });
 
+  it("generates high-level LCD start and line helpers", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+      import { LCD } from "@inojs/lcd";
+
+      const core = new Ino();
+      const lcd = new LCD(0x27, 16, 2);
+
+      core.init(() => {
+        lcd.start();
+        lcd.line(0, "Hello inoJS");
+      });
+
+      core.every("clock", 1000, () => {
+        lcd.line(1, \`Millis \${core.millis()}\`);
+      });
+    `, [lcdPlugin]);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("lcd_lcd.init();");
+    expect(result.code).toContain("lcd_lcd.backlight();");
+    expect(result.code).toContain('lcd_lcd.print("                ");');
+    expect(result.code).toContain('lcd_lcd.print("Hello inoJS");');
+    expect(result.code).toContain('lcd_lcd.print("Millis " + String(millis()));');
+  });
+
   it("reports unsupported LCD methods once", () => {
     const result = generate(`
       import { Ino } from "@inojs/core";

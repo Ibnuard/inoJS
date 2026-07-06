@@ -58,6 +58,11 @@ export function generateArduinoCpp(ast: File, options: GenerateOptions = {}): Ge
         loopStatements.push(...coreEveryToCpp(call, context));
         continue;
       }
+      const buttonPress = buttonOnPressToCpp(call, context);
+      if (buttonPress) {
+        loopStatements.push(...buttonPress);
+        continue;
+      }
     }
 
     context.diagnostics.push({
@@ -113,6 +118,12 @@ function collectTopLevelDeclaration(statement: Extract<Statement, { type: "Varia
       continue;
     }
 
+    const button = getButtonBinding(declaration.init, context);
+    if (button) {
+      context.buttons.set(declaration.id.name, button);
+      continue;
+    }
+
     if (isCoreCall(declaration.init, "serial", context)) {
       context.serialAliases.add(declaration.id.name);
       continue;
@@ -138,8 +149,10 @@ function statementToCpp(statement: Statement, context: Context): string[] {
       }
       const serialLog = serialLogCallToCpp(statement.expression, context);
       if (serialLog) return serialLog;
+      const buttonPress = buttonOnPressToCpp(statement.expression, context);
+      if (buttonPress) return buttonPress;
     }
-    return [`${expressionStatementToCpp(statement.expression, context)};`];
+    return cppStatementLines(expressionStatementToCpp(statement.expression, context));
   }
 
   if (statement.type === "VariableDeclaration") {
@@ -186,6 +199,9 @@ function expressionStatementToCpp(expression: Expression, context: Context): str
 
     const serialCall = serialMethodCall(expression, context);
     if (serialCall) return serialCall;
+
+    const buttonCall = buttonMethodCall(expression, context);
+    if (buttonCall) return buttonCall;
   }
 
   return expressionToCpp(expression, context);
@@ -223,6 +239,8 @@ function expressionToCpp(expression: Node, context: Context): string {
       if (analogRead) return analogRead;
       const pinRead = pinReadExpression(expression, context);
       if (pinRead) return pinRead;
+      const buttonRead = buttonReadExpression(expression, context);
+      if (buttonRead) return buttonRead;
       const coreDelay = getCoreCallArgument(expression, "delay", context);
       if (coreDelay) return `delay(${expressionToCpp(coreDelay, context)})`;
       if (isCoreCall(expression, "millis", context)) return "millis()";
@@ -315,6 +333,63 @@ function serialMethodCall(call: CallExpression, context: Context): string | unde
   }
 }
 
+function buttonMethodCall(call: CallExpression, context: Context): string | undefined {
+  if (call.callee.type !== "MemberExpression" || call.callee.object.type !== "Identifier") return undefined;
+  if (call.callee.property.type !== "Identifier") return undefined;
+
+  const button = context.buttons.get(call.callee.object.name);
+  if (!button) return undefined;
+
+  switch (call.callee.property.name) {
+    case "init":
+      return `pinMode(${button.pin}, ${button.mode})`;
+    default:
+      unsupported(context, `Unsupported button method: ${call.callee.property.name}`, call.callee.property);
+      return undefined;
+  }
+}
+
+function buttonReadExpression(call: CallExpression, context: Context): string | undefined {
+  if (call.callee.type !== "MemberExpression" || call.callee.object.type !== "Identifier") return undefined;
+  if (call.callee.property.type !== "Identifier" || call.callee.property.name !== "isPressed") return undefined;
+
+  const button = context.buttons.get(call.callee.object.name);
+  return button ? `digitalRead(${button.pin}) == ${button.pressedLevel}` : undefined;
+}
+
+function buttonOnPressToCpp(call: CallExpression, context: Context): string[] | undefined {
+  if (call.callee.type !== "MemberExpression" || call.callee.object.type !== "Identifier") return undefined;
+  if (call.callee.property.type !== "Identifier" || call.callee.property.name !== "onPress") return undefined;
+
+  const buttonName = call.callee.object.name;
+  const button = context.buttons.get(buttonName);
+  if (!button) return undefined;
+
+  const callback = call.arguments[0];
+  if (!callback || callback.type !== "ArrowFunctionExpression") {
+    unsupported(context, "button.onPress() expects a callback.", call);
+    return ["/* unsupported button.onPress */"];
+  }
+
+  const block = arrowBodyToBlock(callback);
+  if (!block) {
+    unsupported(context, "button.onPress() expects a block callback.", callback);
+    return ["/* unsupported button.onPress */"];
+  }
+
+  const previousSymbol = uniqueCppSymbol(context, `${buttonName}_pressed`, "inojs_button");
+  const currentSymbol = uniqueCppSymbol(context, `${buttonName}_current`, "inojs_button");
+  context.globals.push(`bool ${previousSymbol} = false;`);
+
+  return [
+    `bool ${currentSymbol} = digitalRead(${button.pin}) == ${button.pressedLevel};`,
+    `if (${currentSymbol} && !${previousSymbol}) {`,
+    ...indent(blockToCpp(block, context)),
+    "}",
+    `${previousSymbol} = ${currentSymbol};`
+  ];
+}
+
 function isCoreLifecycleCall(call: CallExpression, name: "setup" | "loop" | "init" | "app", context: Context): boolean {
   return call.callee.type === "MemberExpression"
     && call.callee.object.type === "Identifier"
@@ -336,6 +411,11 @@ function arrowBodyToBlock(callback: ArrowFunctionExpression): BlockStatement | u
 function getCoreCallArgument(expression: Node, name: string, context: Context): Node | undefined {
   if (!isCoreCall(expression, name, context) || expression.type !== "CallExpression") return undefined;
   return expression.arguments[0];
+}
+
+function getCoreCallArguments(expression: Node, name: string, context: Context): Node[] | undefined {
+  if (!isCoreCall(expression, name, context) || expression.type !== "CallExpression") return undefined;
+  return expression.arguments;
 }
 
 function isCoreCall(expression: Node, name: string, context: Context): boolean {
@@ -383,6 +463,32 @@ function getAutoSerialBegin(argument: Node | undefined | null, context: Context)
   return baudRate ?? "115200";
 }
 
+function getButtonBinding(expression: Node, context: Context) {
+  const args = getCoreCallArguments(expression, "button", context);
+  if (!args) return undefined;
+
+  const pin = args[0];
+  const options = args[1];
+  const pullup = getBooleanOption(options, "pullup");
+
+  return {
+    pin: pin ? expressionToCpp(pin, context) : "0",
+    mode: pullup ? "INPUT_PULLUP" as const : "INPUT" as const,
+    pressedLevel: pullup ? "LOW" as const : "HIGH" as const
+  };
+}
+
+function getBooleanOption(expression: Node | undefined | null, name: string): boolean {
+  if (!expression || expression.type !== "ObjectExpression") return false;
+
+  for (const property of expression.properties) {
+    if (property.type !== "ObjectProperty" || property.key.type !== "Identifier") continue;
+    if (property.key.name === name && property.value.type === "BooleanLiteral") return property.value.value;
+  }
+
+  return false;
+}
+
 function pinWriteValue(call: CallExpression, context: Context): string {
   const value = call.arguments[0];
   if (!value) return "LOW";
@@ -406,6 +512,14 @@ function isIdentifierCall(expression: CallExpression, name: string): boolean {
 
 function joinArgs(call: CallExpression, context: Context): string {
   return call.arguments.map((argument) => expressionToCpp(argument, context)).join(", ");
+}
+
+function cppStatementLines(code: string): string[] {
+  return code.split("\n").map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.endsWith(";") || trimmed.endsWith("{") || trimmed.endsWith("}")) return line;
+    return `${line};`;
+  });
 }
 
 function coreEveryToCpp(call: CallExpression, context: Context): string[] {

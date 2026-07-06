@@ -29,6 +29,18 @@ export class SerialPort {
   log() {}
 }
 
+export class Button {
+  constructor(pinNumber) {
+    this.pinNumber = pinNumber;
+  }
+
+  init() {}
+  isPressed() {
+    return false;
+  }
+  onPress() {}
+}
+
 export class Ino {
   constructor() {}
 
@@ -41,6 +53,9 @@ export class Ino {
   }
   led(pinNumber) {
     return new Pin(pinNumber);
+  }
+  button(pinNumber, options) {
+    return new Button(pinNumber, options);
   }
   serial() {
     return new SerialPort();

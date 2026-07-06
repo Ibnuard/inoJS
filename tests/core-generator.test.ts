@@ -298,4 +298,87 @@ describe("Arduino C++ generator", () => {
     expect(result.diagnostics).toEqual([]);
     expect(result.code).toContain('Serial.println("Temp " + String(value));');
   });
+
+  it("generates button input helpers", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      const button = core.button(2, { pullup: true });
+      const led = core.led(13);
+
+      core.init(() => {
+        button.init();
+        led.output();
+      });
+
+      core.app(() => {
+        if (button.isPressed()) {
+          led.on();
+        } else {
+          led.off();
+        }
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toMatchInlineSnapshot(`
+      "#include <Arduino.h>
+
+      void setup() {
+        pinMode(2, INPUT_PULLUP);
+        pinMode(13, OUTPUT);
+      }
+
+      void loop() {
+        if (digitalRead(2) == LOW) {
+          digitalWrite(13, HIGH);
+        }
+        else {
+          digitalWrite(13, LOW);
+        }
+      }
+      "
+    `);
+  });
+
+  it("generates button onPress edge detection", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      const button = core.button(2, { pullup: true });
+      const led = core.led(13);
+
+      core.init(() => {
+        button.init();
+        led.output();
+      });
+
+      button.onPress(() => {
+        led.toggle();
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toMatchInlineSnapshot(`
+      "#include <Arduino.h>
+
+      bool inojs_button_button_pressed = false;
+
+      void setup() {
+        pinMode(2, INPUT_PULLUP);
+        pinMode(13, OUTPUT);
+      }
+
+      void loop() {
+        bool inojs_button_button_current = digitalRead(2) == LOW;
+        if (inojs_button_button_current && !inojs_button_button_pressed) {
+          digitalWrite(13, !digitalRead(13));
+        }
+        inojs_button_button_pressed = inojs_button_button_current;
+      }
+      "
+    `);
+  });
 });

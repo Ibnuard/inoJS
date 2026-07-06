@@ -19,6 +19,7 @@ export interface Context {
   diagnostics: Diagnostic[];
   coreAliases: Set<string>;
   pins: Map<string, string>;
+  buttons: Map<string, ButtonBinding>;
   serialAliases: Set<string>;
   autoSerialBegin?: string;
   hasSerialBegin: boolean;
@@ -32,11 +33,18 @@ export interface Context {
   plugins: InoPlugin[];
 }
 
+export interface ButtonBinding {
+  pin: string;
+  mode: "INPUT" | "INPUT_PULLUP";
+  pressedLevel: "HIGH" | "LOW";
+}
+
 export function createContext(plugins: InoPlugin[]): Context {
   return {
     diagnostics: [],
     coreAliases: new Set(["core"]),
     pins: new Map(),
+    buttons: new Map(),
     serialAliases: new Set(),
     hasSerialBegin: false,
     includes: new Set(),

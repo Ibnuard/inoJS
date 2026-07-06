@@ -6,7 +6,9 @@ export class LCD {
   ) {}
 
   begin(): void {}
+  start(): void {}
   clear(): void {}
+  line(row: number, value: string | number | boolean): void {}
   setCursor(column: number, row: number): void {}
   print(value: string | number | boolean): void {}
   backlight(): void {}

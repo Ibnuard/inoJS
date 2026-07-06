@@ -6,13 +6,10 @@ const core = new Ino();
 const lcd = new LCD(0x27, 16, 2);
 
 core.init(() => {
-  lcd.begin();
-  lcd.backlight();
-  lcd.setCursor(0, 0);
-  lcd.print("Hello inoJS");
+  lcd.start();
+  lcd.line(0, "Hello inoJS");
 });
 
 core.every("clock", 1000, () => {
-  lcd.setCursor(0, 1);
-  lcd.print(core.millis());
+  lcd.line(1, `Millis ${core.millis()}`);
 });

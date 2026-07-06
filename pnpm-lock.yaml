@@ -43,6 +43,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
 
+  examples/button:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+
   examples/dht:
     dependencies:
       '@inojs/core':
