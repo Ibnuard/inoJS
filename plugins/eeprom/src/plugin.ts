@@ -7,6 +7,7 @@ export const eepromPlugin: InoPlugin = {
   symbols: ["EEPROMStore"],
   analyzeDeclaration(declaration, context) {
     if (!isNew(declaration, "EEPROMStore")) return false;
+    context.requireBoardCapability("eeprom", declaration.init);
     context.addInclude("EEPROM.h");
     context.bindSymbol(declaration.id.name, { plugin: "@inojs/eeprom", cppName: "EEPROM" });
     return true;
@@ -15,7 +16,21 @@ export const eepromPlugin: InoPlugin = {
     if (call.callee.type !== "MemberExpression" || call.callee.object.type !== "Identifier" || call.callee.property.type !== "Identifier") return undefined;
     const binding = context.getBinding(call.callee.object.name);
     if (binding?.plugin !== "@inojs/eeprom") return undefined;
-    return `EEPROM.${call.callee.property.name}(${call.arguments.map((arg) => context.expressionToCpp(arg)).join(", ")})`;
+    const args = call.arguments.map((arg) => context.expressionToCpp(arg)).join(", ");
+    switch (call.callee.property.name) {
+      case "begin":
+      case "read":
+      case "write":
+      case "commit":
+        return `EEPROM.${call.callee.property.name}(${args})`;
+      default:
+        context.report({
+          level: "warning",
+          message: `Unsupported EEPROM method: ${call.callee.property.name}`,
+          node: call.callee.property
+        });
+        return `/* unsupported EEPROM method: ${call.callee.property.name} */`;
+    }
   }
 };
 

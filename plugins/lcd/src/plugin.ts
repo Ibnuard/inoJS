@@ -15,6 +15,7 @@ export const lcdPlugin: InoPlugin = {
     const cppName = context.uniqueSymbol(name, "lcd");
     const columnsCpp = expressionOrDefault(columns, "16", context);
 
+    context.requireBoardCapability("i2c", declaration.init);
     context.addInclude("LiquidCrystal_I2C.h");
     context.addGlobal(`LiquidCrystal_I2C ${cppName}(${expressionOrDefault(address, "0x27", context)}, ${columnsCpp}, ${expressionOrDefault(rows, "2", context)});`);
     context.addLibDep("marcoschwartz/LiquidCrystal_I2C");

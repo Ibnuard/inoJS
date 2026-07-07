@@ -8,12 +8,19 @@ export const oledPlugin: InoPlugin = {
   analyzeDeclaration(declaration, context) {
     if (!isNew(declaration, "OLED")) return false;
     const cppName = context.uniqueSymbol(declaration.id.name, "oled");
-    const [width, height] = declaration.init.arguments;
+    const [width, height, address] = declaration.init.arguments;
+    context.requireBoardCapability("i2c", declaration.init);
     context.addInclude("Wire.h");
     context.addInclude("Adafruit_SSD1306.h");
     context.addGlobal(`Adafruit_SSD1306 ${cppName}(${expr(width, "128", context)}, ${expr(height, "64", context)}, &Wire, -1);`);
     context.addLibDep("adafruit/Adafruit SSD1306");
-    context.bindSymbol(declaration.id.name, { plugin: "@inojs/oled", cppName });
+    context.bindSymbol(declaration.id.name, {
+      plugin: "@inojs/oled",
+      cppName,
+      data: {
+        address: expr(address, "0x3C", context)
+      }
+    });
     return true;
   },
   generateCall(call, context) {
@@ -21,7 +28,7 @@ export const oledPlugin: InoPlugin = {
     const binding = context.getBinding(call.callee.object.name);
     if (binding?.plugin !== "@inojs/oled") return undefined;
     const args = call.arguments.map((arg) => context.expressionToCpp(arg)).join(", ");
-    if (call.callee.property.name === "begin") return `${binding.cppName}.begin(SSD1306_SWITCHCAPVCC, 0x3C)`;
+    if (call.callee.property.name === "begin") return `${binding.cppName}.begin(SSD1306_SWITCHCAPVCC, ${binding.data?.address ?? "0x3C"})`;
     if (call.callee.property.name === "clear") return `${binding.cppName}.clearDisplay()`;
     if (call.callee.property.name === "textSize") return `${binding.cppName}.setTextSize(${args})`;
     if (call.callee.property.name === "textColor") return `${binding.cppName}.setTextColor(${args})`;

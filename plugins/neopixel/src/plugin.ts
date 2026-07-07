@@ -10,6 +10,20 @@ export const neoPixelPlugin: InoPlugin = {
     const [count, pin] = declaration.init.arguments;
     const cppName = context.uniqueSymbol(declaration.id.name, "pixels");
     context.validatePin(pin);
+    if (!count) {
+      context.report({
+        level: "error",
+        message: "NeoPixel constructor requires a pixel count.",
+        node: declaration.init
+      });
+    }
+    if (!pin) {
+      context.report({
+        level: "error",
+        message: "NeoPixel constructor requires a pin.",
+        node: declaration.init
+      });
+    }
     context.addInclude("Adafruit_NeoPixel.h");
     context.addGlobal(`Adafruit_NeoPixel ${cppName}(${expr(count, "1", context)}, ${expr(pin, "0", context)}, NEO_GRB + NEO_KHZ800);`);
     context.addLibDep("adafruit/Adafruit NeoPixel");

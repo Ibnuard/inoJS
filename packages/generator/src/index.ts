@@ -16,7 +16,7 @@ import {
   type Diagnostic,
   type DiagnosticLocation
 } from "./context.js";
-import { validatePinExpression } from "./boards.js";
+import { requireBoardCapability, validatePinExpression } from "./boards.js";
 
 export type { Diagnostic, DiagnosticLocation } from "./context.js";
 
@@ -638,6 +638,7 @@ function createPluginContext(context: Context) {
     context,
     (expression) => expressionToCpp(expression, context),
     (expression) => validatePin(expression, context),
+    (capability, node) => requireBoardCapability(capability, context, locationOf, node),
     (diagnostic) => reportPluginDiagnostic(context, diagnostic)
   );
 }

@@ -4,11 +4,12 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { pathToFileURL } from "node:url";
 import { compileProject, type Diagnostic } from "@inojs/compiler";
 
-const [command = "help", ...args] = process.argv.slice(2);
+export async function runCli(argv = process.argv.slice(2)): Promise<void> {
+  const [command = "help", ...args] = argv;
 
-try {
   if (command === "new") {
     await createProject(args[0] ?? "inojs-app");
   } else if (command === "build") {
@@ -41,9 +42,6 @@ try {
   } else {
     printHelp();
   }
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
 }
 
 const modulePackages: Record<string, string> = {
@@ -131,10 +129,18 @@ async function prepareFirmwareProject() {
   for (const diagnostic of result.diagnostics) {
     console.warn(formatDiagnostic(diagnostic));
   }
+  assertNoCompilerErrors(result.diagnostics);
   return result;
 }
 
-function formatDiagnostic(diagnostic: Diagnostic): string {
+export function assertNoCompilerErrors(diagnostics: Diagnostic[]): void {
+  const errorCount = diagnostics.filter((diagnostic) => diagnostic.level === "error").length;
+  if (errorCount > 0) {
+    throw new Error(`Compilation failed with ${errorCount} error${errorCount === 1 ? "" : "s"}. Fix compiler diagnostics before running PlatformIO.`);
+  }
+}
+
+export function formatDiagnostic(diagnostic: Diagnostic): string {
   const prefix = diagnostic.location
     ? `${diagnostic.location.filename ?? "source"}:${diagnostic.location.line}:${diagnostic.location.column}`
     : "source";
@@ -338,4 +344,18 @@ function printHelp(): void {
     "  doctor         Check and install missing dependencies",
     ""
   ].join("\n"));
+}
+
+function isDirectRun(): boolean {
+  const entry = process.argv[1];
+  return Boolean(entry && import.meta.url === pathToFileURL(entry).href);
+}
+
+if (isDirectRun()) {
+  try {
+    await runCli();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
 }

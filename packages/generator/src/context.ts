@@ -1,5 +1,5 @@
 import type { Node } from "@babel/types";
-import type { InoPlugin, PluginBinding, PluginContext, PluginDiagnostic } from "@inojs/plugin-api";
+import type { BoardCapability, InoPlugin, PluginBinding, PluginContext, PluginDiagnostic } from "@inojs/plugin-api";
 
 export type DiagnosticLevel = "error" | "warning";
 
@@ -64,6 +64,7 @@ export function createPluginContext(
   context: Context,
   expressionToCpp: (expression: Node) => string,
   validatePin: (expression: Node | undefined | null) => void,
+  requireBoardCapability: (capability: BoardCapability, node?: Node) => void,
   report: (diagnostic: PluginDiagnostic) => void
 ): PluginContext {
   return {
@@ -92,6 +93,7 @@ export function createPluginContext(
       return uniqueCppSymbol(context, name, prefix);
     },
     validatePin,
+    requireBoardCapability,
     expressionToCpp,
     report
   };

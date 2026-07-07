@@ -7,6 +7,7 @@ export const bluetoothPlugin: InoPlugin = {
   symbols: ["Bluetooth"],
   analyzeDeclaration(declaration, context) {
     if (!isNew(declaration, "Bluetooth")) return false;
+    context.requireBoardCapability("bluetooth", declaration.init);
     const cppName = context.uniqueSymbol(declaration.id.name, "bt");
     context.addInclude("BluetoothSerial.h");
     context.addGlobal(`BluetoothSerial ${cppName};`);
@@ -17,7 +18,22 @@ export const bluetoothPlugin: InoPlugin = {
     if (call.callee.type !== "MemberExpression" || call.callee.object.type !== "Identifier" || call.callee.property.type !== "Identifier") return undefined;
     const binding = context.getBinding(call.callee.object.name);
     if (binding?.plugin !== "@inojs/bluetooth") return undefined;
-    return `${binding.cppName}.${call.callee.property.name}(${call.arguments.map((arg) => context.expressionToCpp(arg)).join(", ")})`;
+    const args = call.arguments.map((arg) => context.expressionToCpp(arg)).join(", ");
+    switch (call.callee.property.name) {
+      case "begin":
+      case "available":
+      case "read":
+      case "print":
+      case "println":
+        return `${binding.cppName}.${call.callee.property.name}(${args})`;
+      default:
+        context.report({
+          level: "warning",
+          message: `Unsupported Bluetooth method: ${call.callee.property.name}`,
+          node: call.callee.property
+        });
+        return `/* unsupported Bluetooth method: ${call.callee.property.name} */`;
+    }
   }
 };
 

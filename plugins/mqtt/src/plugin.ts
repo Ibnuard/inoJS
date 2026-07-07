@@ -7,6 +7,7 @@ export const mqttPlugin: InoPlugin = {
   symbols: ["MQTT"],
   analyzeDeclaration(declaration, context) {
     if (!isNew(declaration, "MQTT")) return false;
+    context.requireBoardCapability("wifi", declaration.init);
     const cppName = context.uniqueSymbol(declaration.id.name, "mqtt");
     const wifiName = context.uniqueSymbol(declaration.id.name, "wifiClient");
     context.addInclude("WiFi.h");
@@ -21,7 +22,22 @@ export const mqttPlugin: InoPlugin = {
     if (call.callee.type !== "MemberExpression" || call.callee.object.type !== "Identifier" || call.callee.property.type !== "Identifier") return undefined;
     const binding = context.getBinding(call.callee.object.name);
     if (binding?.plugin !== "@inojs/mqtt") return undefined;
-    return `${binding.cppName}.${call.callee.property.name}(${call.arguments.map((arg) => context.expressionToCpp(arg)).join(", ")})`;
+    const args = call.arguments.map((arg) => context.expressionToCpp(arg)).join(", ");
+    switch (call.callee.property.name) {
+      case "setServer":
+      case "connect":
+      case "publish":
+      case "subscribe":
+      case "loop":
+        return `${binding.cppName}.${call.callee.property.name}(${args})`;
+      default:
+        context.report({
+          level: "warning",
+          message: `Unsupported MQTT method: ${call.callee.property.name}`,
+          node: call.callee.property
+        });
+        return `/* unsupported MQTT method: ${call.callee.property.name} */`;
+    }
   }
 };
 

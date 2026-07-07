@@ -22,9 +22,12 @@ export interface PluginContext {
   getBinding(name: string): PluginBinding | undefined;
   uniqueSymbol(name: string, prefix?: string): string;
   validatePin(expression: Node | undefined | null): void;
+  requireBoardCapability(capability: BoardCapability, node?: Node): void;
   expressionToCpp(expression: Node): string;
   report(diagnostic: PluginDiagnostic): void;
 }
+
+export type BoardCapability = "bluetooth" | "eeprom" | "i2c" | "spi" | "wifi";
 
 export interface InoPlugin {
   name: string;

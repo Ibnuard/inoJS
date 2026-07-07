@@ -8,6 +8,7 @@ export const sdPlugin: InoPlugin = {
   analyzeDeclaration(declaration, context) {
     if (!isNew(declaration, "SDCard")) return false;
     const pin = declaration.init.arguments[0];
+    context.requireBoardCapability("spi", declaration.init);
     context.validatePin(pin);
     context.addInclude("SD.h");
     context.bindSymbol(declaration.id.name, { plugin: "@inojs/sd", cppName: "SD", data: { pin: pin ? context.expressionToCpp(pin) : "10" } });
@@ -18,8 +19,20 @@ export const sdPlugin: InoPlugin = {
     const binding = context.getBinding(call.callee.object.name);
     if (binding?.plugin !== "@inojs/sd") return undefined;
     const args = call.arguments.map((arg) => context.expressionToCpp(arg)).join(", ");
-    if (call.callee.property.name === "begin") return `SD.begin(${args || binding.data?.pin || "10"})`;
-    return `SD.${call.callee.property.name}(${args})`;
+    switch (call.callee.property.name) {
+      case "begin":
+        return `SD.begin(${args || binding.data?.pin || "10"})`;
+      case "exists":
+      case "remove":
+        return `SD.${call.callee.property.name}(${args})`;
+      default:
+        context.report({
+          level: "warning",
+          message: `Unsupported SD method: ${call.callee.property.name}`,
+          node: call.callee.property
+        });
+        return `/* unsupported SD method: ${call.callee.property.name} */`;
+    }
   }
 };
 
