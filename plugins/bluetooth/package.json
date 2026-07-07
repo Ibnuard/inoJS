@@ -1,0 +1,24 @@
+{
+  "name": "@inojs/bluetooth",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@inojs/plugin-api": "workspace:*"
+  },
+  "devDependencies": {
+    "@babel/types": "^7.28.0",
+    "typescript": "^5.8.0"
+  }
+}

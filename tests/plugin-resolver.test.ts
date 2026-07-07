@@ -39,6 +39,34 @@ describe("plugin resolver", () => {
     expect(resolveProjectPlugins(parsed.ast).map((plugin) => plugin.name)).toEqual(["@inojs/lcd"]);
   });
 
+  it("resolves all official modules", () => {
+    const parsed = parseSource(`
+      import { Bluetooth } from "@inojs/bluetooth";
+      import { DHT } from "@inojs/dht";
+      import { EEPROMStore } from "@inojs/eeprom";
+      import { LCD } from "@inojs/lcd";
+      import { MQTT } from "@inojs/mqtt";
+      import { NeoPixel } from "@inojs/neopixel";
+      import { OLED } from "@inojs/oled";
+      import { SDCard } from "@inojs/sd";
+      import { Servo } from "@inojs/servo";
+      import { WiFiConnection } from "@inojs/wifi";
+    `);
+
+    expect(resolveProjectPlugins(parsed.ast).map((plugin) => plugin.name)).toEqual([
+      "@inojs/dht",
+      "@inojs/eeprom",
+      "@inojs/lcd",
+      "@inojs/mqtt",
+      "@inojs/neopixel",
+      "@inojs/oled",
+      "@inojs/sd",
+      "@inojs/servo",
+      "@inojs/wifi",
+      "@inojs/bluetooth"
+    ]);
+  });
+
   it("does not resolve plugins that are not imported", () => {
     const parsed = parseSource(`
       import { Ino } from "@inojs/core";

@@ -16,12 +16,20 @@
   },
   "dependencies": {
     "@inojs/dht": "workspace:*",
+    "@inojs/eeprom": "workspace:*",
     "@inojs/generator": "workspace:*",
     "@inojs/lcd": "workspace:*",
+    "@inojs/mqtt": "workspace:*",
+    "@inojs/neopixel": "workspace:*",
+    "@inojs/oled": "workspace:*",
     "@inojs/parser": "workspace:*",
     "@inojs/plugin-api": "workspace:*",
     "@inojs/platformio": "workspace:*",
-    "@inojs/servo": "workspace:*"
+    "@inojs/sd": "workspace:*",
+    "@inojs/servo": "workspace:*",
+    "@inojs/source-map": "workspace:*",
+    "@inojs/wifi": "workspace:*",
+    "@inojs/bluetooth": "workspace:*"
   },
   "devDependencies": {
     "@babel/types": "^7.28.0",

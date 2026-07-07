@@ -10,6 +10,12 @@ const defaultPlatforms: Record<string, string> = {
   uno: "atmelavr",
   nanoatmega328: "atmelavr",
   megaatmega2560: "atmelavr",
+  due: "atmelsam",
+  teensy41: "teensy",
+  pico: "raspberrypi",
+  rpipico: "raspberrypi",
+  bluepill_f103c8: "ststm32",
+  genericSTM32F103C8: "ststm32",
   nodemcuv2: "espressif8266",
   esp32dev: "espressif32"
 };

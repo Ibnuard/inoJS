@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
@@ -15,12 +15,27 @@ try {
     const result = await prepareFirmwareProject();
     console.log("Building firmware...");
     await runPlatformIO(["run"], resultDir(result.generatedCppPath));
+  } else if (command === "dev") {
+    const result = await prepareFirmwareProject();
+    console.log("Building and uploading firmware...");
+    await runPlatformIO(["run", "--target", "upload"], resultDir(result.generatedCppPath));
+    console.log("Opening serial monitor...");
+    await runPlatformIO(["device", "monitor"], resultDir(result.generatedCppPath));
   } else if (command === "upload") {
     const result = await prepareFirmwareProject();
     console.log("Uploading firmware...");
     await runPlatformIO(["run", "--target", "upload"], resultDir(result.generatedCppPath));
   } else if (command === "monitor") {
     await runPlatformIO(["device", "monitor"], join(process.cwd(), ".ino/generated"));
+  } else if (command === "clean") {
+    await rm(join(process.cwd(), ".ino"), { recursive: true, force: true });
+    console.log("Cleaned .ino");
+  } else if (command === "add") {
+    await updateDependency(args[0], "add");
+  } else if (command === "remove") {
+    await updateDependency(args[0], "remove");
+  } else if (command === "update") {
+    await runInteractive("pnpm", ["update"], process.cwd());
   } else if (command === "doctor") {
     await runDoctor(args);
   } else {
@@ -29,6 +44,35 @@ try {
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
+}
+
+const modulePackages: Record<string, string> = {
+  bluetooth: "@inojs/bluetooth",
+  dht: "@inojs/dht",
+  eeprom: "@inojs/eeprom",
+  lcd: "@inojs/lcd",
+  mqtt: "@inojs/mqtt",
+  neopixel: "@inojs/neopixel",
+  oled: "@inojs/oled",
+  sd: "@inojs/sd",
+  servo: "@inojs/servo",
+  wifi: "@inojs/wifi"
+};
+
+async function updateDependency(name: string | undefined, action: "add" | "remove"): Promise<void> {
+  if (!name) throw new Error(`Usage: ino ${action} <module>`);
+  const packageName = modulePackages[name] ?? name;
+  const packageJsonPath = join(process.cwd(), "package.json");
+  const pkg = JSON.parse(await readFile(packageJsonPath, "utf8")) as { dependencies?: Record<string, string> };
+  pkg.dependencies ??= {};
+  if (action === "add") {
+    pkg.dependencies[packageName] = "workspace:*";
+  } else {
+    delete pkg.dependencies[packageName];
+  }
+  await writeFile(packageJsonPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+  await runInteractive("pnpm", ["install"], process.cwd());
+  console.log(`${action === "add" ? "Added" : "Removed"} ${packageName}`);
 }
 
 async function createProject(name: string): Promise<void> {
@@ -283,9 +327,14 @@ function printHelp(): void {
     "",
     "Commands:",
     "  new <name>     Create a new inoJS project",
+    "  dev            Build, upload, and monitor",
     "  build          Build firmware",
     "  upload         Upload firmware",
     "  monitor        Open PlatformIO serial monitor",
+    "  clean          Remove generated files",
+    "  add <module>   Add an inoJS module",
+    "  remove <module> Remove an inoJS module",
+    "  update         Update project dependencies",
     "  doctor         Check and install missing dependencies",
     ""
   ].join("\n"));

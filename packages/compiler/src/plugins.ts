@@ -1,13 +1,27 @@
 import { dhtPlugin } from "@inojs/dht";
+import { eepromPlugin } from "@inojs/eeprom";
 import { lcdPlugin } from "@inojs/lcd";
+import { mqttPlugin } from "@inojs/mqtt";
+import { neoPixelPlugin } from "@inojs/neopixel";
+import { oledPlugin } from "@inojs/oled";
+import { sdPlugin } from "@inojs/sd";
 import { servoPlugin } from "@inojs/servo";
+import { wifiPlugin } from "@inojs/wifi";
+import { bluetoothPlugin } from "@inojs/bluetooth";
 import type { File } from "@babel/types";
 import type { InoPlugin } from "@inojs/plugin-api";
 
 export const builtInPlugins: InoPlugin[] = [
   dhtPlugin,
+  eepromPlugin,
   lcdPlugin,
-  servoPlugin
+  mqttPlugin,
+  neoPixelPlugin,
+  oledPlugin,
+  sdPlugin,
+  servoPlugin,
+  wifiPlugin,
+  bluetoothPlugin
 ];
 
 export function resolveProjectPlugins(ast: File, registry: InoPlugin[] = builtInPlugins): InoPlugin[] {

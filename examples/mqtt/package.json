@@ -1,0 +1,11 @@
+{
+  "name": "@inojs/example-mqtt",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@inojs/core": "workspace:*",
+    "@inojs/mqtt": "workspace:*",
+    "@inojs/wifi": "workspace:*"
+  }
+}

@@ -9,6 +9,16 @@
     { "path": "../parser" },
     { "path": "../generator" },
     { "path": "../platformio" },
-    { "path": "../../plugins/servo" }
+    { "path": "../source-map" },
+    { "path": "../../plugins/servo" },
+    { "path": "../../plugins/dht" },
+    { "path": "../../plugins/lcd" },
+    { "path": "../../plugins/oled" },
+    { "path": "../../plugins/eeprom" },
+    { "path": "../../plugins/sd" },
+    { "path": "../../plugins/neopixel" },
+    { "path": "../../plugins/wifi" },
+    { "path": "../../plugins/mqtt" },
+    { "path": "../../plugins/bluetooth" }
   ]
 }

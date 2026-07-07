@@ -9,6 +9,12 @@ const boardPins: Record<string, BoardPinProfile> = {
   uno: range(0, 19),
   nanoatmega328: range(0, 19),
   megaatmega2560: range(0, 69),
+  due: range(0, 53),
+  teensy41: range(0, 54),
+  pico: range(0, 28),
+  rpipico: range(0, 28),
+  bluepill_f103c8: range(0, 37),
+  genericSTM32F103C8: range(0, 37),
   esp32dev: set([0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39]),
   nodemcuv2: range(0, 16)
 };

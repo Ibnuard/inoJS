@@ -1,0 +1,13 @@
+{
+  "name": "@inojs/example-advanced-env-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@inojs/core": "workspace:*",
+    "@inojs/dht": "workspace:*",
+    "@inojs/eeprom": "workspace:*",
+    "@inojs/neopixel": "workspace:*",
+    "@inojs/oled": "workspace:*"
+  }
+}

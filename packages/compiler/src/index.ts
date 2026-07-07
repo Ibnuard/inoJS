@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { generateArduinoCpp, type Diagnostic } from "@inojs/generator";
 import { parse } from "@inojs/parser";
 import { generatePlatformIOIni, type PlatformIOConfig } from "@inojs/platformio";
+import { InoSourceMap } from "@inojs/source-map";
 import { resolveProjectPlugins } from "./plugins.js";
 
 export type { Diagnostic } from "@inojs/generator";
@@ -18,6 +19,7 @@ export interface CompileOptions {
 export interface CompileResult {
   generatedCppPath: string;
   platformioIniPath: string;
+  sourceMapPath: string;
   diagnostics: Diagnostic[];
 }
 
@@ -40,9 +42,13 @@ export async function compileProject(options: CompileOptions): Promise<CompileRe
 
   const generatedCppPath = join(options.cwd, outDir, "src/main.cpp");
   const platformioIniPath = join(options.cwd, outDir, "platformio.ini");
+  const sourceMapPath = join(options.cwd, outDir, "src/main.cpp.map");
 
   await mkdir(dirname(generatedCppPath), { recursive: true });
   await writeFile(generatedCppPath, generated.code, "utf8");
+  const sourceMap = new InoSourceMap();
+  sourceMap.add(1, { filename: sourcePath, line: 1, column: 1 });
+  await writeFile(sourceMapPath, `${JSON.stringify(sourceMap.toJSON(), null, 2)}\n`, "utf8");
   const platformioWithDeps = {
     ...platformio,
     libDeps: unique([
@@ -57,6 +63,7 @@ export async function compileProject(options: CompileOptions): Promise<CompileRe
   return {
     generatedCppPath,
     platformioIniPath,
+    sourceMapPath,
     diagnostics: generated.diagnostics
   };
 }

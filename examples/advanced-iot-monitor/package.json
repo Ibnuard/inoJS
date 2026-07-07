@@ -1,0 +1,13 @@
+{
+  "name": "@inojs/example-advanced-iot-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@inojs/core": "workspace:*",
+    "@inojs/dht": "workspace:*",
+    "@inojs/mqtt": "workspace:*",
+    "@inojs/sd": "workspace:*",
+    "@inojs/wifi": "workspace:*"
+  }
+}

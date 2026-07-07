@@ -43,6 +43,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
 
+  examples/bluetooth:
+    dependencies:
+      '@inojs/bluetooth':
+        specifier: workspace:*
+        version: link:../../plugins/bluetooth
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+
   examples/button:
     dependencies:
       '@inojs/core':
@@ -58,6 +67,15 @@ importers:
         specifier: workspace:*
         version: link:../../plugins/dht
 
+  examples/eeprom:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@inojs/eeprom':
+        specifier: workspace:*
+        version: link:../../plugins/eeprom
+
   examples/lcd:
     dependencies:
       '@inojs/core':
@@ -66,6 +84,45 @@ importers:
       '@inojs/lcd':
         specifier: workspace:*
         version: link:../../plugins/lcd
+
+  examples/mqtt:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@inojs/mqtt':
+        specifier: workspace:*
+        version: link:../../plugins/mqtt
+      '@inojs/wifi':
+        specifier: workspace:*
+        version: link:../../plugins/wifi
+
+  examples/neopixel:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@inojs/neopixel':
+        specifier: workspace:*
+        version: link:../../plugins/neopixel
+
+  examples/oled:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@inojs/oled':
+        specifier: workspace:*
+        version: link:../../plugins/oled
+
+  examples/sd:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@inojs/sd':
+        specifier: workspace:*
+        version: link:../../plugins/sd
 
   examples/servo:
     dependencies:
@@ -76,17 +133,41 @@ importers:
         specifier: workspace:*
         version: link:../../plugins/servo
 
+  examples/wifi:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@inojs/wifi':
+        specifier: workspace:*
+        version: link:../../plugins/wifi
+
   packages/compiler:
     dependencies:
+      '@inojs/bluetooth':
+        specifier: workspace:*
+        version: link:../../plugins/bluetooth
       '@inojs/dht':
         specifier: workspace:*
         version: link:../../plugins/dht
+      '@inojs/eeprom':
+        specifier: workspace:*
+        version: link:../../plugins/eeprom
       '@inojs/generator':
         specifier: workspace:*
         version: link:../generator
       '@inojs/lcd':
         specifier: workspace:*
         version: link:../../plugins/lcd
+      '@inojs/mqtt':
+        specifier: workspace:*
+        version: link:../../plugins/mqtt
+      '@inojs/neopixel':
+        specifier: workspace:*
+        version: link:../../plugins/neopixel
+      '@inojs/oled':
+        specifier: workspace:*
+        version: link:../../plugins/oled
       '@inojs/parser':
         specifier: workspace:*
         version: link:../parser
@@ -96,9 +177,18 @@ importers:
       '@inojs/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
+      '@inojs/sd':
+        specifier: workspace:*
+        version: link:../../plugins/sd
       '@inojs/servo':
         specifier: workspace:*
         version: link:../../plugins/servo
+      '@inojs/source-map':
+        specifier: workspace:*
+        version: link:../source-map
+      '@inojs/wifi':
+        specifier: workspace:*
+        version: link:../../plugins/wifi
     devDependencies:
       '@babel/types':
         specifier: ^7.28.0
@@ -155,13 +245,57 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
+  packages/registry:
+    devDependencies:
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/runtime:
+    devDependencies:
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/source-map:
+    devDependencies:
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
   packages/types:
     devDependencies:
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
 
+  plugins/bluetooth:
+    dependencies:
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+    devDependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
   plugins/dht:
+    dependencies:
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+    devDependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  plugins/eeprom:
     dependencies:
       '@inojs/plugin-api':
         specifier: workspace:*
@@ -187,7 +321,72 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
+  plugins/mqtt:
+    dependencies:
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+    devDependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  plugins/neopixel:
+    dependencies:
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+    devDependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  plugins/oled:
+    dependencies:
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+    devDependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  plugins/sd:
+    dependencies:
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+    devDependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
   plugins/servo:
+    dependencies:
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+    devDependencies:
+      '@babel/types':
+        specifier: ^7.28.0
+        version: 7.29.7
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  plugins/wifi:
     dependencies:
       '@inojs/plugin-api':
         specifier: workspace:*

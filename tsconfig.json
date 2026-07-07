@@ -5,12 +5,22 @@
     { "path": "./packages/plugin-api" },
     { "path": "./packages/generator" },
     { "path": "./packages/platformio" },
+    { "path": "./packages/runtime" },
+    { "path": "./packages/source-map" },
+    { "path": "./packages/registry" },
     { "path": "./packages/compiler" },
     { "path": "./packages/core" },
     { "path": "./packages/types" },
     { "path": "./plugins/servo" },
     { "path": "./plugins/dht" },
     { "path": "./plugins/lcd" },
+    { "path": "./plugins/oled" },
+    { "path": "./plugins/eeprom" },
+    { "path": "./plugins/sd" },
+    { "path": "./plugins/neopixel" },
+    { "path": "./plugins/wifi" },
+    { "path": "./plugins/mqtt" },
+    { "path": "./plugins/bluetooth" },
     { "path": "./apps/cli" }
   ]
 }

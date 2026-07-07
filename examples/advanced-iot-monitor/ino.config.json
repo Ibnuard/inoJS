@@ -1,0 +1,6 @@
+{
+  "board": "esp32dev",
+  "serial": {
+    "baudRate": 115200
+  }
+}
