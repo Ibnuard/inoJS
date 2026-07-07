@@ -112,16 +112,16 @@ describe("Arduino C++ generator", () => {
       const core = new Ino();
 
       core.loop(() => {
-        while (true) {
+        do {
           core.delay(1000);
-        }
+        } while (true);
       });
     `);
 
     expect(result.diagnostics).toEqual([
       {
         level: "warning",
-        message: "Unsupported statement in setup/loop: WhileStatement",
+        message: "Unsupported statement in setup/loop: DoWhileStatement",
         location: {
           filename: "src/main.js",
           line: 7,
@@ -129,6 +129,239 @@ describe("Arduino C++ generator", () => {
         }
       }
     ]);
+  });
+
+  it("generates typed helper functions and for loops", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino({ serialMonitor: true, baudRate: 115200 });
+      const sensor = core.pin(34);
+
+      function readAverage(samples: number): number {
+        let total = 0;
+        for (let i = 0; i < samples; i++) {
+          total = total + sensor.analogRead();
+        }
+        return total / samples;
+      }
+
+      core.init(() => {});
+
+      core.app(() => {
+        const value = readAverage(4);
+        core.log("avg", value);
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toMatchInlineSnapshot(`
+      "#include <Arduino.h>
+
+      double readAverage(double samples) {
+        int total = 0;
+        for (int i = 0; i < samples; i++) {
+          total = total + analogRead(34);
+        }
+        return total / samples;
+      }
+
+      void setup() {
+        Serial.begin(115200);
+      }
+
+      void loop() {
+        auto value = readAverage(4);
+        Serial.print("avg");
+        Serial.print(" ");
+        Serial.println(value);
+      }
+      "
+    `);
+  });
+
+  it("generates array literals, index access, and length checks", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino({ serialMonitor: true, baudRate: 115200 });
+      const pins = [2, 3, 4];
+
+      core.app(() => {
+        for (let i = 0; i < pins.length; i++) {
+          core.log(pins[i]);
+        }
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("int pins[] = {2, 3, 4};");
+    expect(result.code).toContain("for (int i = 0; i < (sizeof(pins) / sizeof(pins[0])); i++) {");
+    expect(result.code).toContain("Serial.println(pins[i]);");
+  });
+
+  it("generates while, break, continue, and switch control flow", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      let mode = 0;
+
+      core.app(() => {
+        while (mode < 3) {
+          mode++;
+          if (mode == 1) {
+            continue;
+          }
+          switch (mode) {
+            case 2:
+              core.delay(10);
+              break;
+            default:
+              break;
+          }
+        }
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("while (mode < 3) {");
+    expect(result.code).toContain("continue;");
+    expect(result.code).toContain("switch (mode) {");
+    expect(result.code).toContain("case 2:");
+    expect(result.code).toContain("default:");
+    expect(result.code).toContain("break;");
+  });
+
+  it("infers simple declaration and return types", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      const enabled = true;
+      const label = "ok";
+      const ratio = 0.5;
+
+      function answer() {
+        return 42;
+      }
+
+      core.app(() => {
+        const now = core.millis();
+        const value = answer();
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("bool enabled = true;");
+    expect(result.code).toContain('String label = "ok";');
+    expect(result.code).toContain("double ratio = 0.5;");
+    expect(result.code).toContain("int answer() {");
+    expect(result.code).toContain("unsigned long now = millis();");
+    expect(result.code).toContain("auto value = answer();");
+  });
+
+  it("reports board-aware analog and PWM pin validation errors", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      const sensor = core.pin(13);
+      const led = core.pin(8);
+
+      core.app(() => {
+        const value = sensor.analogRead();
+        led.pwm(value);
+      });
+    `, [], { board: "uno" });
+
+    expect(result.diagnostics).toEqual([
+      {
+        level: "error",
+        message: "Pin 13 does not support analog on board uno.",
+        location: {
+          filename: "src/main.js",
+          line: 5,
+          column: 31
+        }
+      },
+      {
+        level: "error",
+        message: "Pin 8 does not support PWM on board uno.",
+        location: {
+          filename: "src/main.js",
+          line: 6,
+          column: 28
+        }
+      }
+    ]);
+  });
+
+  it("generates void helper functions", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+      const led = core.led(13);
+
+      function blinkOnce(): void {
+        led.on();
+        core.delay(10);
+        led.off();
+      }
+
+      core.init(() => {
+        led.output();
+      });
+
+      core.app(() => {
+        blinkOnce();
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("void blinkOnce() {");
+    expect(result.code).toContain("digitalWrite(13, HIGH);");
+    expect(result.code).toContain("delay(10);");
+    expect(result.code).toContain("blinkOnce();");
+  });
+
+  it("warns when helper function signatures are not stable enough for C++", () => {
+    const result = generate(`
+      import { Ino } from "@inojs/core";
+
+      const core = new Ino();
+
+      function scale(value) {
+        return value * 2;
+      }
+
+      core.app(() => {
+        scale(2);
+      });
+    `);
+
+    expect(result.diagnostics).toEqual([
+      {
+        level: "warning",
+        message: "Function parameter value should declare a type for stable C++ generation.",
+        location: {
+          filename: "src/main.js",
+          line: 6,
+          column: 22
+        }
+      },
+      {
+        level: "warning",
+        message: "Function scale should declare a return type for stable C++ generation.",
+        location: {
+          filename: "src/main.js",
+          line: 6,
+          column: 7
+        }
+      }
+    ]);
+    expect(result.code).toContain("auto scale(double value) {");
   });
 
   it("generates init/app lifecycle aliases", () => {
@@ -274,7 +507,7 @@ describe("Arduino C++ generator", () => {
       }
 
       void loop() {
-        auto value = millis();
+        unsigned long value = millis();
         Serial.print("Temp ");
         Serial.println(value);
       }

@@ -12,7 +12,8 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
-    "@inojs/compiler": "workspace:*"
+    "@inojs/compiler": "workspace:*",
+    "@inojs/source-map": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

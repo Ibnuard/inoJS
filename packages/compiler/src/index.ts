@@ -47,7 +47,9 @@ export async function compileProject(options: CompileOptions): Promise<CompileRe
   await mkdir(dirname(generatedCppPath), { recursive: true });
   await writeFile(generatedCppPath, generated.code, "utf8");
   const sourceMap = new InoSourceMap();
-  sourceMap.add(1, { filename: sourcePath, line: 1, column: 1 });
+  for (const mapping of generated.sourceMap) {
+    sourceMap.add(mapping.generatedLine, mapping.source);
+  }
   await writeFile(sourceMapPath, `${JSON.stringify(sourceMap.toJSON(), null, 2)}\n`, "utf8");
   const platformioWithDeps = {
     ...platformio,

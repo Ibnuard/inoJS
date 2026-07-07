@@ -4,8 +4,13 @@ import type {
   CallExpression,
   Expression,
   File,
+  ForStatement,
+  FunctionDeclaration,
   Node,
-  Statement
+  Statement,
+  SwitchCase,
+  SwitchStatement,
+  VariableDeclarator
 } from "@babel/types";
 import type { InoPlugin, PluginDiagnostic } from "@inojs/plugin-api";
 import {
@@ -16,7 +21,7 @@ import {
   type Diagnostic,
   type DiagnosticLocation
 } from "./context.js";
-import { requireBoardCapability, validatePinExpression } from "./boards.js";
+import { requireBoardCapability, validateAnalogPinExpression, validatePinExpression, validatePwmPinExpression } from "./boards.js";
 
 export type { Diagnostic, DiagnosticLocation } from "./context.js";
 
@@ -24,6 +29,7 @@ export interface GenerateResult {
   code: string;
   diagnostics: Diagnostic[];
   libDeps: string[];
+  sourceMap: SourceLineMapping[];
 }
 
 export interface GenerateOptions {
@@ -31,15 +37,31 @@ export interface GenerateOptions {
   board?: string;
 }
 
+export interface SourceLineMapping {
+  generatedLine: number;
+  source: DiagnosticLocation;
+}
+
+interface CppLine {
+  code: string;
+  source?: DiagnosticLocation;
+}
+
 export function generateArduinoCpp(ast: File, options: GenerateOptions = {}): GenerateResult {
   const plugins = options.plugins ?? [];
   const context = createContext(plugins, options.board);
 
-  const setupStatements: string[] = [];
-  const loopStatements: string[] = [];
+  const functionDeclarations: CppLine[] = [];
+  const setupStatements: CppLine[] = [];
+  const loopStatements: CppLine[] = [];
 
   for (const statement of ast.program.body) {
     if (statement.type === "ImportDeclaration") continue;
+
+    if (statement.type === "FunctionDeclaration") {
+      functionDeclarations.push(...collectFunctionDeclaration(statement, context));
+      continue;
+    }
 
     if (statement.type === "VariableDeclaration") {
       collectTopLevelDeclaration(statement, context, plugins);
@@ -49,20 +71,20 @@ export function generateArduinoCpp(ast: File, options: GenerateOptions = {}): Ge
     if (statement.type === "ExpressionStatement" && statement.expression.type === "CallExpression") {
       const call = statement.expression;
       if (isCoreLifecycleCall(call, "setup", context) || isCoreLifecycleCall(call, "init", context)) {
-        setupStatements.push(...blockToCpp(getLifecycleBlock(call), context));
+        setupStatements.push(...blockToMappedCpp(getLifecycleBlock(call), context));
         continue;
       }
       if (isCoreLifecycleCall(call, "loop", context) || isCoreLifecycleCall(call, "app", context)) {
-        loopStatements.push(...blockToCpp(getLifecycleBlock(call), context));
+        loopStatements.push(...blockToMappedCpp(getLifecycleBlock(call), context));
         continue;
       }
       if (isCoreCall(call, "every", context)) {
-        loopStatements.push(...coreEveryToCpp(call, context));
+        loopStatements.push(...mapLines(coreEveryToCpp(call, context), call));
         continue;
       }
       const buttonPress = buttonOnPressToCpp(call, context);
       if (buttonPress) {
-        loopStatements.push(...buttonPress);
+        loopStatements.push(...mapLines(buttonPress, call));
         continue;
       }
     }
@@ -74,26 +96,32 @@ export function generateArduinoCpp(ast: File, options: GenerateOptions = {}): Ge
     });
   }
 
-  const code = [
-    "#include <Arduino.h>",
-    ...[...context.includes].map((include) => `#include <${include}>`),
-    "",
-    ...context.globals,
-    ...(context.globals.length ? [""] : []),
-    "void setup() {",
-    ...indent(setupPrologue(context)),
-    ...indent(context.setupContributions),
-    ...indent(setupStatements),
-    "}",
-    "",
-    "void loop() {",
-    ...indent(context.loopContributions),
-    ...indent(loopStatements),
-    "}",
-    ""
-  ].join("\n");
+  const lines: CppLine[] = [
+    line("#include <Arduino.h>"),
+    ...[...context.includes].map((include) => line(`#include <${include}>`)),
+    line(""),
+    ...context.globals.map((global) => line(global)),
+    ...((context.globals.length && functionDeclarations.length) ? [line("")] : []),
+    ...functionDeclarations,
+    ...((context.globals.length || functionDeclarations.length) ? [line("")] : []),
+    line("void setup() {"),
+    ...indentMapped(mapLines(setupPrologue(context))),
+    ...indentMapped(mapLines(context.setupContributions)),
+    ...indentMapped(setupStatements),
+    line("}"),
+    line(""),
+    line("void loop() {"),
+    ...indentMapped(mapLines(context.loopContributions)),
+    ...indentMapped(loopStatements),
+    line("}"),
+    line("")
+  ];
+  const code = lines.map((generatedLine) => generatedLine.code).join("\n");
+  const sourceMap = lines.flatMap((generatedLine, index): SourceLineMapping[] => (
+    generatedLine.source ? [{ generatedLine: index + 1, source: generatedLine.source }] : []
+  ));
 
-  return { code, diagnostics: context.diagnostics, libDeps: [...context.libDeps] };
+  return { code, diagnostics: context.diagnostics, libDeps: [...context.libDeps], sourceMap };
 }
 
 function collectTopLevelDeclaration(statement: Extract<Statement, { type: "VariableDeclaration" }>, context: Context, plugins: InoPlugin[]): void {
@@ -118,6 +146,7 @@ function collectTopLevelDeclaration(statement: Extract<Statement, { type: "Varia
     if (pin) {
       validatePin(pin, context);
       context.pins.set(declaration.id.name, expressionToCpp(pin, context));
+      context.pinNodes.set(declaration.id.name, pin);
       continue;
     }
 
@@ -132,13 +161,35 @@ function collectTopLevelDeclaration(statement: Extract<Statement, { type: "Varia
       continue;
     }
 
-    context.globals.push(`auto ${declaration.id.name} = ${expressionToCpp(declaration.init, context)};`);
+    context.globals.push(declarationToCpp(declaration, context));
   }
+}
+
+function collectFunctionDeclaration(statement: FunctionDeclaration, context: Context): CppLine[] {
+  if (!statement.id) {
+    unsupported(context, "Function declarations must have a name.", statement);
+    return [];
+  }
+
+  const parameters = statement.params.map((parameter) => parameterToCpp(parameter, context)).join(", ");
+  const returnType = functionReturnType(statement, context);
+  const body = blockToMappedCpp(statement.body, context);
+
+  return [
+    line(`${returnType} ${statement.id.name}(${parameters}) {`, statement),
+    ...indentMapped(body),
+    line("}", statement)
+  ];
 }
 
 function blockToCpp(block: BlockStatement | undefined, context: Context): string[] {
   if (!block) return [];
   return block.body.flatMap((statement) => statementToCpp(statement, context));
+}
+
+function blockToMappedCpp(block: BlockStatement | undefined, context: Context): CppLine[] {
+  if (!block) return [];
+  return block.body.flatMap((statement) => statementToMappedCpp(statement, context));
 }
 
 function statementToCpp(statement: Statement, context: Context): string[] {
@@ -164,8 +215,7 @@ function statementToCpp(statement: Statement, context: Context): string[] {
         unsupported(context, `Unsupported declaration target: ${declaration.id.type}`, declaration.id);
         return "";
       }
-      const value = declaration.init ? expressionToCpp(declaration.init, context) : "0";
-      return `auto ${declaration.id.name} = ${value};`;
+      return declarationToCpp(declaration, context);
     }).filter(Boolean);
   }
 
@@ -184,12 +234,88 @@ function statementToCpp(statement: Statement, context: Context): string[] {
     return lines;
   }
 
+  if (statement.type === "ForStatement") {
+    return forStatementToCpp(statement, context);
+  }
+
+  if (statement.type === "WhileStatement") {
+    const body = statement.body.type === "BlockStatement"
+      ? blockToCpp(statement.body, context)
+      : statementToCpp(statement.body, context);
+    return [
+      `while (${expressionToCpp(statement.test, context)}) {`,
+      ...indent(body),
+      "}"
+    ];
+  }
+
+  if (statement.type === "SwitchStatement") {
+    return switchStatementToCpp(statement, context);
+  }
+
+  if (statement.type === "BreakStatement") return ["break;"];
+
+  if (statement.type === "ContinueStatement") return ["continue;"];
+
   if (statement.type === "ReturnStatement") {
     return statement.argument ? [`return ${expressionToCpp(statement.argument, context)};`] : ["return;"];
   }
 
   unsupported(context, `Unsupported statement in setup/loop: ${statement.type}`, statement);
   return [];
+}
+
+function statementToMappedCpp(statement: Statement, context: Context): CppLine[] {
+  if (statement.type === "IfStatement") {
+    const test = expressionToCpp(statement.test, context);
+    const consequent = statement.consequent.type === "BlockStatement"
+      ? blockToMappedCpp(statement.consequent, context)
+      : statementToMappedCpp(statement.consequent, context);
+    const lines = [
+      line(`if (${test}) {`, statement),
+      ...indentMapped(consequent),
+      line("}", statement)
+    ];
+    if (statement.alternate) {
+      const alternate = statement.alternate.type === "BlockStatement"
+        ? blockToMappedCpp(statement.alternate, context)
+        : statementToMappedCpp(statement.alternate, context);
+      lines.push(line("else {", statement), ...indentMapped(alternate), line("}", statement));
+    }
+    return lines;
+  }
+
+  if (statement.type === "ForStatement") {
+    const init = statement.init ? forInitToCpp(statement.init, context) : "";
+    const test = statement.test ? expressionToCpp(statement.test, context) : "";
+    const update = statement.update ? expressionToCpp(statement.update, context) : "";
+    const body = statement.body.type === "BlockStatement"
+      ? blockToMappedCpp(statement.body, context)
+      : statementToMappedCpp(statement.body, context);
+
+    return [
+      line(`for (${init}; ${test}; ${update}) {`, statement),
+      ...indentMapped(body),
+      line("}", statement)
+    ];
+  }
+
+  if (statement.type === "WhileStatement") {
+    const body = statement.body.type === "BlockStatement"
+      ? blockToMappedCpp(statement.body, context)
+      : statementToMappedCpp(statement.body, context);
+    return [
+      line(`while (${expressionToCpp(statement.test, context)}) {`, statement),
+      ...indentMapped(body),
+      line("}", statement)
+    ];
+  }
+
+  if (statement.type === "SwitchStatement") {
+    return switchStatementToMappedCpp(statement, context);
+  }
+
+  return mapLines(statementToCpp(statement, context), statement);
 }
 
 function expressionStatementToCpp(expression: Expression, context: Context): string {
@@ -220,6 +346,8 @@ function expressionToCpp(expression: Node, context: Context): string {
       return templateLiteralToCpp(expression, context);
     case "BooleanLiteral":
       return expression.value ? "true" : "false";
+    case "ArrayExpression":
+      return arrayExpressionToCpp(expression, context);
     case "Identifier":
       return expression.name;
     case "MemberExpression":
@@ -255,6 +383,7 @@ function expressionToCpp(expression: Node, context: Context): string {
       if (isIdentifierCall(expression, "delay")) return `delay(${joinArgs(expression, context)})`;
       if (isIdentifierCall(expression, "millis")) return "millis()";
       if (isIdentifierCall(expression, "micros")) return "micros()";
+      if (expression.callee.type === "Identifier") return `${expression.callee.name}(${joinArgs(expression, context)})`;
       unsupported(context, "Unsupported function call expression", expression);
       return "/* unsupported call */";
     }
@@ -262,6 +391,18 @@ function expressionToCpp(expression: Node, context: Context): string {
       unsupported(context, `Unsupported expression: ${expression.type}`, expression);
       return "/* unsupported */";
   }
+}
+
+function declarationToCpp(declaration: VariableDeclarator, context: Context): string {
+  if (declaration.id.type !== "Identifier") {
+    unsupported(context, `Unsupported declaration target: ${declaration.id.type}`, declaration.id);
+    return "";
+  }
+  if (declaration.init?.type === "ArrayExpression") {
+    return `${arrayElementType(declaration.init, context)} ${declaration.id.name}[] = ${arrayExpressionToCpp(declaration.init, context)};`;
+  }
+  const value = declaration.init ? expressionToCpp(declaration.init, context) : "0";
+  return `${inferDeclarationType(declaration, context)} ${declaration.id.name} = ${value};`;
 }
 
 function pluginMethodCall(call: CallExpression, context: Context): string | undefined {
@@ -307,6 +448,7 @@ function pinMethodCall(call: CallExpression, context: Context): string | undefin
       return `digitalWrite(${pin}, ${pinWriteValue(call, context)})`;
     case "analogWrite":
     case "pwm":
+      validatePwmPin(call.callee.object.name, context);
       return `analogWrite(${pin}, ${joinArgs(call, context)})`;
     default:
       unsupported(context, `Unsupported pin method: ${call.callee.property.name}`, call.callee.property);
@@ -507,11 +649,222 @@ function analogReadExpression(call: CallExpression, context: Context): string | 
   if (call.callee.property.type !== "Identifier" || call.callee.property.name !== "analogRead") return undefined;
 
   const pin = context.pins.get(call.callee.object.name);
+  validateAnalogPin(call.callee.object.name, context);
   return pin ? `analogRead(${pin})` : undefined;
+}
+
+function validateAnalogPin(name: string, context: Context): void {
+  validateAnalogPinExpression(context.pinNodes.get(name), context, locationOf);
+}
+
+function validatePwmPin(name: string, context: Context): void {
+  validatePwmPinExpression(context.pinNodes.get(name), context, locationOf);
 }
 
 function isIdentifierCall(expression: CallExpression, name: string): boolean {
   return expression.callee.type === "Identifier" && expression.callee.name === name;
+}
+
+function forStatementToCpp(statement: ForStatement, context: Context): string[] {
+  const init = statement.init ? forInitToCpp(statement.init, context) : "";
+  const test = statement.test ? expressionToCpp(statement.test, context) : "";
+  const update = statement.update ? expressionToCpp(statement.update, context) : "";
+  const body = statement.body.type === "BlockStatement"
+    ? blockToCpp(statement.body, context)
+    : statementToCpp(statement.body, context);
+
+  return [
+    `for (${init}; ${test}; ${update}) {`,
+    ...indent(body),
+    "}"
+  ];
+}
+
+function forInitToCpp(init: ForStatement["init"], context: Context): string {
+  if (!init) return "";
+  if (init.type === "VariableDeclaration") {
+    if (init.declarations.length !== 1) {
+      unsupported(context, "for loops support a single initializer declaration.", init);
+      return "/* unsupported for init */";
+    }
+    const declaration = init.declarations[0];
+    if (declaration.id.type !== "Identifier") {
+      unsupported(context, `Unsupported for loop declaration target: ${declaration.id.type}`, declaration.id);
+      return "/* unsupported for init */";
+    }
+    const value = declaration.init ? expressionToCpp(declaration.init, context) : "0";
+    return `${inferDeclarationType(declaration, context)} ${declaration.id.name} = ${value}`;
+  }
+  return expressionToCpp(init, context);
+}
+
+function switchStatementToCpp(statement: SwitchStatement, context: Context): string[] {
+  return [
+    `switch (${expressionToCpp(statement.discriminant, context)}) {`,
+    ...indent(statement.cases.flatMap((switchCase) => switchCaseToCpp(switchCase, context))),
+    "}"
+  ];
+}
+
+function switchStatementToMappedCpp(statement: SwitchStatement, context: Context): CppLine[] {
+  return [
+    line(`switch (${expressionToCpp(statement.discriminant, context)}) {`, statement),
+    ...indentMapped(statement.cases.flatMap((switchCase) => switchCaseToMappedCpp(switchCase, context))),
+    line("}", statement)
+  ];
+}
+
+function switchCaseToCpp(switchCase: SwitchCase, context: Context): string[] {
+  const header = switchCase.test ? `case ${expressionToCpp(switchCase.test, context)}:` : "default:";
+  return [
+    header,
+    ...indent(switchCase.consequent.flatMap((statement) => statementToCpp(statement, context)))
+  ];
+}
+
+function switchCaseToMappedCpp(switchCase: SwitchCase, context: Context): CppLine[] {
+  const header = switchCase.test ? `case ${expressionToCpp(switchCase.test, context)}:` : "default:";
+  return [
+    line(header, switchCase),
+    ...indentMapped(switchCase.consequent.flatMap((statement) => statementToMappedCpp(statement, context)))
+  ];
+}
+
+function parameterToCpp(parameter: FunctionDeclaration["params"][number], context: Context): string {
+  if (parameter.type !== "Identifier") {
+    unsupported(context, `Unsupported function parameter: ${parameter.type}`, parameter);
+    return "double /* unsupported */";
+  }
+
+  const type = typeAnnotationToCpp(getTsTypeAnnotation(parameter.typeAnnotation), context);
+  if (!type) {
+    unsupported(context, `Function parameter ${parameter.name} should declare a type for stable C++ generation.`, parameter);
+  }
+
+  return `${type ?? "double"} ${parameter.name}`;
+}
+
+function functionReturnType(statement: FunctionDeclaration, context: Context): string {
+  const annotation = typeAnnotationToCpp(getTsTypeAnnotation(statement.returnType), context);
+  if (annotation) return annotation;
+  const inferred = inferFunctionReturnType(statement.body, context);
+  if (inferred) return inferred;
+  if (!functionHasReturnValue(statement.body)) return "void";
+
+  unsupported(context, `Function ${statement.id?.name ?? "<anonymous>"} should declare a return type for stable C++ generation.`, statement);
+  return "auto";
+}
+
+function inferFunctionReturnType(block: BlockStatement, context: Context): string | undefined {
+  for (const statement of block.body) {
+    if (statement.type === "ReturnStatement" && statement.argument) {
+      const inferred = inferExpressionType(statement.argument, context);
+      if (inferred) return inferred;
+    }
+    if (statement.type === "IfStatement") {
+      if (statement.consequent.type === "BlockStatement") {
+        const inferred = inferFunctionReturnType(statement.consequent, context);
+        if (inferred) return inferred;
+      }
+      if (statement.alternate?.type === "BlockStatement") {
+        const inferred = inferFunctionReturnType(statement.alternate, context);
+        if (inferred) return inferred;
+      }
+    }
+  }
+  return undefined;
+}
+
+function functionHasReturnValue(block: BlockStatement): boolean {
+  return block.body.some((statement) => {
+    if (statement.type === "ReturnStatement") return Boolean(statement.argument);
+    if (statement.type === "IfStatement") {
+      const consequent = statement.consequent.type === "BlockStatement"
+        ? functionHasReturnValue(statement.consequent)
+        : statement.consequent.type === "ReturnStatement" && Boolean(statement.consequent.argument);
+      const alternate = statement.alternate
+        ? statement.alternate.type === "BlockStatement"
+          ? functionHasReturnValue(statement.alternate)
+          : statement.alternate.type === "ReturnStatement" && Boolean(statement.alternate.argument)
+        : false;
+      return consequent || alternate;
+    }
+    return false;
+  });
+}
+
+function getTsTypeAnnotation(annotation: Node | null | undefined): Node | undefined {
+  return annotation?.type === "TSTypeAnnotation" ? annotation.typeAnnotation : undefined;
+}
+
+function typeAnnotationToCpp(typeAnnotation: Node | null | undefined, context: Context): string | undefined {
+  if (!typeAnnotation) return undefined;
+
+  switch (typeAnnotation.type) {
+    case "TSNumberKeyword":
+      return "double";
+    case "TSBooleanKeyword":
+      return "bool";
+    case "TSStringKeyword":
+      return "String";
+    case "TSVoidKeyword":
+      return "void";
+    default:
+      unsupported(context, `Unsupported TypeScript type annotation: ${typeAnnotation.type}`, typeAnnotation);
+      return "auto";
+  }
+}
+
+function inferDeclarationType(declaration: VariableDeclarator, context: Context): string {
+  return inferExpressionType(declaration.init, context) ?? "auto";
+}
+
+function inferExpressionType(expression: Node | null | undefined, context: Context): string | undefined {
+  if (!expression) return undefined;
+
+  switch (expression.type) {
+    case "NumericLiteral":
+      return Number.isInteger(expression.value) ? "int" : "double";
+    case "BooleanLiteral":
+      return "bool";
+    case "StringLiteral":
+    case "TemplateLiteral":
+      return "String";
+    case "UnaryExpression":
+      return inferExpressionType(expression.argument, context);
+    case "BinaryExpression":
+      return inferBinaryExpressionType(expression.operator, expression.left, expression.right, context);
+    case "LogicalExpression":
+      return "bool";
+    case "CallExpression":
+      if (isCoreCall(expression, "millis", context) || isCoreCall(expression, "micros", context)) return "unsigned long";
+      return undefined;
+    default:
+      return undefined;
+  }
+}
+
+function inferBinaryExpressionType(operator: string, left: Node, right: Node, context: Context): string | undefined {
+  if (["==", "!=", "===", "!==", "<", "<=", ">", ">="].includes(operator)) return "bool";
+  const leftType = inferExpressionType(left, context);
+  const rightType = inferExpressionType(right, context);
+  if (leftType === "String" || rightType === "String") return "String";
+  if (leftType === "double" || rightType === "double") return "double";
+  if (leftType === "int" && rightType === "int") return "int";
+  return undefined;
+}
+
+function arrayElementType(expression: Extract<Node, { type: "ArrayExpression" }>, context: Context): string {
+  const types = expression.elements.map((element) => {
+    if (!element || element.type === "SpreadElement") return undefined;
+    return inferExpressionType(element, context);
+  }).filter((type): type is string => Boolean(type));
+  if (!types.length) return "auto";
+  if (types.includes("String")) return "String";
+  if (types.includes("double")) return "double";
+  if (types.every((type) => type === "bool")) return "bool";
+  if (types.every((type) => type === "int")) return "int";
+  return "auto";
 }
 
 function joinArgs(call: CallExpression, context: Context): string {
@@ -599,6 +952,21 @@ function serialLogToCpp(call: CallExpression, context: Context, options: { separ
   return lines;
 }
 
+function arrayExpressionToCpp(expression: Extract<Node, { type: "ArrayExpression" }>, context: Context): string {
+  const values = expression.elements.map((element) => {
+    if (!element) {
+      unsupported(context, "Sparse arrays are not supported.", expression);
+      return "0";
+    }
+    if (element.type === "SpreadElement") {
+      unsupported(context, "Array spread is not supported.", element);
+      return "/* unsupported spread */";
+    }
+    return expressionToCpp(element, context);
+  });
+  return `{${values.join(", ")}}`;
+}
+
 function templateLiteralToCpp(expression: Extract<Node, { type: "TemplateLiteral" }>, context: Context): string {
   const parts: string[] = [];
 
@@ -616,12 +984,31 @@ function templateLiteralToCpp(expression: Extract<Node, { type: "TemplateLiteral
 
 function memberExpressionToCpp(expression: Extract<Node, { type: "MemberExpression" }>, context: Context): string {
   const object = expressionToCpp(expression.object, context);
+  if (expression.property.type === "Identifier" && !expression.computed && expression.property.name === "length") {
+    return `(sizeof(${object}) / sizeof(${object}[0]))`;
+  }
   if (expression.property.type === "Identifier" && !expression.computed) return `${object}.${expression.property.name}`;
   return `${object}[${expressionToCpp(expression.property, context)}]`;
 }
 
 function indent(lines: string[]): string[] {
   return lines.map((line) => line ? `  ${line}` : line);
+}
+
+function indentMapped(lines: CppLine[]): CppLine[] {
+  return lines.map((mappedLine) => ({
+    ...mappedLine,
+    code: mappedLine.code ? `  ${mappedLine.code}` : mappedLine.code
+  }));
+}
+
+function mapLines(lines: string[], node?: Node): CppLine[] {
+  const source = locationOf(node);
+  return lines.map((code) => ({ code, source }));
+}
+
+function line(code: string, node?: Node): CppLine {
+  return { code, source: locationOf(node) };
 }
 
 function setupPrologue(context: Context): string[] {

@@ -4,12 +4,16 @@ export interface BoardProfile {
   id: string;
   platform: string;
   digitalPins: Set<number>;
+  analogPins: Set<number>;
+  pwmPins: Set<number>;
   capabilities: Set<BoardCapability>;
 }
 
 export interface BoardProfileDefinition {
   platform: string;
   digitalPins: number[] | { start: number; end: number };
+  analogPins?: number[] | { start: number; end: number };
+  pwmPins?: number[] | { start: number; end: number };
   capabilities?: BoardCapability[];
 }
 
@@ -17,56 +21,78 @@ const boardProfileDefinitions = {
   uno: {
     platform: "atmelavr",
     digitalPins: { start: 0, end: 19 },
+    analogPins: { start: 14, end: 19 },
+    pwmPins: [3, 5, 6, 9, 10, 11],
     capabilities: ["eeprom", "i2c", "spi"]
   },
   nanoatmega328: {
     platform: "atmelavr",
     digitalPins: { start: 0, end: 19 },
+    analogPins: { start: 14, end: 19 },
+    pwmPins: [3, 5, 6, 9, 10, 11],
     capabilities: ["eeprom", "i2c", "spi"]
   },
   megaatmega2560: {
     platform: "atmelavr",
     digitalPins: { start: 0, end: 69 },
+    analogPins: { start: 54, end: 69 },
+    pwmPins: { start: 2, end: 13 },
     capabilities: ["eeprom", "i2c", "spi"]
   },
   due: {
     platform: "atmelsam",
     digitalPins: { start: 0, end: 53 },
+    analogPins: { start: 54, end: 65 },
+    pwmPins: [2, 3, 4, 5, 6, 7, 8, 9, 13],
     capabilities: ["i2c", "spi"]
   },
   teensy41: {
     platform: "teensy",
     digitalPins: { start: 0, end: 54 },
+    analogPins: { start: 14, end: 27 },
+    pwmPins: { start: 0, end: 33 },
     capabilities: ["eeprom", "i2c", "spi"]
   },
   pico: {
     platform: "raspberrypi",
     digitalPins: { start: 0, end: 28 },
+    analogPins: [26, 27, 28],
+    pwmPins: { start: 0, end: 28 },
     capabilities: ["i2c", "spi"]
   },
   rpipico: {
     platform: "raspberrypi",
     digitalPins: { start: 0, end: 28 },
+    analogPins: [26, 27, 28],
+    pwmPins: { start: 0, end: 28 },
     capabilities: ["i2c", "spi"]
   },
   bluepill_f103c8: {
     platform: "ststm32",
     digitalPins: { start: 0, end: 37 },
+    analogPins: { start: 0, end: 9 },
+    pwmPins: { start: 0, end: 15 },
     capabilities: ["i2c", "spi"]
   },
   genericSTM32F103C8: {
     platform: "ststm32",
     digitalPins: { start: 0, end: 37 },
+    analogPins: { start: 0, end: 9 },
+    pwmPins: { start: 0, end: 15 },
     capabilities: ["i2c", "spi"]
   },
   esp32dev: {
     platform: "espressif32",
     digitalPins: [0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39],
+    analogPins: [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 39],
+    pwmPins: [0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33],
     capabilities: ["bluetooth", "eeprom", "i2c", "spi", "wifi"]
   },
   nodemcuv2: {
     platform: "espressif8266",
     digitalPins: { start: 0, end: 16 },
+    analogPins: [0],
+    pwmPins: { start: 0, end: 16 },
     capabilities: ["eeprom", "i2c", "spi", "wifi"]
   }
 } satisfies Record<string, BoardProfileDefinition>;
@@ -80,6 +106,8 @@ export const boardProfiles: Record<KnownBoardId, BoardProfile> = Object.fromEntr
       id,
       platform: definition.platform,
       digitalPins: pinsToSet(definition.digitalPins),
+      analogPins: pinsToSet(definition.analogPins ?? []),
+      pwmPins: pinsToSet(definition.pwmPins ?? []),
       capabilities: new Set(definition.capabilities ?? [])
     }
   ])
@@ -102,6 +130,16 @@ export function boardSupportsCapability(board: string | undefined, capability: B
 export function isValidDigitalPin(board: string | undefined, pin: number): boolean | undefined {
   const profile = getBoardProfile(board);
   return profile ? profile.digitalPins.has(pin) : undefined;
+}
+
+export function isValidAnalogPin(board: string | undefined, pin: number): boolean | undefined {
+  const profile = getBoardProfile(board);
+  return profile ? profile.analogPins.has(pin) : undefined;
+}
+
+export function isValidPwmPin(board: string | undefined, pin: number): boolean | undefined {
+  const profile = getBoardProfile(board);
+  return profile ? profile.pwmPins.has(pin) : undefined;
 }
 
 function pinsToSet(pins: number[] | { start: number; end: number }): Set<number> {

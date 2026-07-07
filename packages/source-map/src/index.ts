@@ -23,4 +23,22 @@ export class InoSourceMap {
   toJSON(): LineMapping[] {
     return [...this.mappings].map(([generatedLine, source]) => ({ generatedLine, source }));
   }
+
+  static fromJSON(mappings: LineMapping[]): InoSourceMap {
+    const sourceMap = new InoSourceMap();
+    for (const mapping of mappings) sourceMap.add(mapping.generatedLine, mapping.source);
+    return sourceMap;
+  }
+}
+
+export interface RemappedDiagnostic {
+  generatedLine: number;
+  source?: SourcePosition;
+}
+
+export function remapGeneratedLine(mappings: LineMapping[], generatedLine: number): RemappedDiagnostic {
+  return {
+    generatedLine,
+    source: InoSourceMap.fromJSON(mappings).get(generatedLine)
+  };
 }

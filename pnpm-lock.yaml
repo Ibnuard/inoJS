@@ -23,6 +23,9 @@ importers:
       '@inojs/compiler':
         specifier: workspace:*
         version: link:../../packages/compiler
+      '@inojs/source-map':
+        specifier: workspace:*
+        version: link:../../packages/source-map
     devDependencies:
       '@types/node':
         specifier: ^22.0.0

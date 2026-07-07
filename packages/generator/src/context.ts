@@ -20,6 +20,7 @@ export interface Context {
   diagnostics: Diagnostic[];
   coreAliases: Set<string>;
   pins: Map<string, string>;
+  pinNodes: Map<string, Node>;
   buttons: Map<string, ButtonBinding>;
   serialAliases: Set<string>;
   autoSerialBegin?: string;
@@ -46,6 +47,7 @@ export function createContext(plugins: InoPlugin[], board?: string): Context {
     diagnostics: [],
     coreAliases: new Set(["core"]),
     pins: new Map(),
+    pinNodes: new Map(),
     buttons: new Map(),
     serialAliases: new Set(),
     hasSerialBegin: false,

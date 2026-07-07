@@ -6,6 +6,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { pathToFileURL } from "node:url";
 import { compileProject, type Diagnostic } from "@inojs/compiler";
+import { remapGeneratedLine, type LineMapping } from "@inojs/source-map";
 
 export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   const [command = "help", ...args] = argv;
@@ -15,17 +16,17 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   } else if (command === "build") {
     const result = await prepareFirmwareProject();
     console.log("Building firmware...");
-    await runPlatformIO(["run"], resultDir(result.generatedCppPath));
+    await runPlatformIO(["run"], resultDir(result.generatedCppPath), result.sourceMapPath);
   } else if (command === "dev") {
     const result = await prepareFirmwareProject();
     console.log("Building and uploading firmware...");
-    await runPlatformIO(["run", "--target", "upload"], resultDir(result.generatedCppPath));
+    await runPlatformIO(["run", "--target", "upload"], resultDir(result.generatedCppPath), result.sourceMapPath);
     console.log("Opening serial monitor...");
     await runPlatformIO(["device", "monitor"], resultDir(result.generatedCppPath));
   } else if (command === "upload") {
     const result = await prepareFirmwareProject();
     console.log("Uploading firmware...");
-    await runPlatformIO(["run", "--target", "upload"], resultDir(result.generatedCppPath));
+    await runPlatformIO(["run", "--target", "upload"], resultDir(result.generatedCppPath), result.sourceMapPath);
   } else if (command === "monitor") {
     await runPlatformIO(["device", "monitor"], join(process.cwd(), ".ino/generated"));
   } else if (command === "clean") {
@@ -147,9 +148,16 @@ export function formatDiagnostic(diagnostic: Diagnostic): string {
   return `${prefix} ${diagnostic.level}: ${diagnostic.message}`;
 }
 
-async function runPlatformIO(args: string[], cwd: string): Promise<void> {
+async function runPlatformIO(args: string[], cwd: string, sourceMapPath?: string): Promise<void> {
+  const sourceMap = sourceMapPath ? await readSourceMap(sourceMapPath) : [];
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("pio", args, { cwd, stdio: "inherit" });
+    const child = spawn("pio", args, { cwd, stdio: ["inherit", "pipe", "pipe"] });
+    child.stdout.on("data", (chunk) => {
+      process.stdout.write(remapPlatformIOOutput(String(chunk), sourceMap));
+    });
+    child.stderr.on("data", (chunk) => {
+      process.stderr.write(remapPlatformIOOutput(String(chunk), sourceMap));
+    });
     child.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`PlatformIO exited with code ${code}`)));
     child.on("error", (error: NodeJS.ErrnoException) => {
       if (error.code === "ENOENT") {
@@ -159,6 +167,43 @@ async function runPlatformIO(args: string[], cwd: string): Promise<void> {
       reject(error);
     });
   });
+}
+
+async function readSourceMap(sourceMapPath: string): Promise<LineMapping[]> {
+  try {
+    return JSON.parse(await readFile(sourceMapPath, "utf8")) as LineMapping[];
+  } catch {
+    return [];
+  }
+}
+
+export function remapPlatformIOOutput(output: string, sourceMap: LineMapping[]): string {
+  if (!sourceMap.length) return output;
+
+  return output.split(/(\r?\n)/).map((part) => {
+    if (part === "\n" || part === "\r\n" || !part) return part;
+    const sourceHints = remapPlatformIOLine(part, sourceMap);
+    return sourceHints.length ? `${part}\n${sourceHints.join("\n")}` : part;
+  }).join("");
+}
+
+function remapPlatformIOLine(line: string, sourceMap: LineMapping[]): string[] {
+  const pattern = /(?:^|[\s(["'])((?:\.?\.?\/)?(?:src\/)?main\.cpp):(\d+)(?::\d+)?/g;
+  const hints: string[] = [];
+  const seen = new Set<string>();
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(line))) {
+    const generatedLine = Number.parseInt(match[2], 10);
+    const source = remapGeneratedLine(sourceMap, generatedLine).source;
+    if (!source) continue;
+    const hint = `inoJS source: ${source.filename ?? "source"}:${source.line}:${source.column}`;
+    if (seen.has(hint)) continue;
+    seen.add(hint);
+    hints.push(hint);
+  }
+
+  return hints;
 }
 
 interface CommandResult {

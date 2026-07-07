@@ -3,7 +3,9 @@ import {
   boardProfiles,
   boardSupportsCapability,
   getDefaultPlatform,
-  isValidDigitalPin
+  isValidAnalogPin,
+  isValidDigitalPin,
+  isValidPwmPin
 } from "../packages/config/src/index.js";
 import { generatePlatformIOIni } from "../packages/platformio/src/index.js";
 
@@ -27,6 +29,15 @@ describe("board configuration", () => {
     expect(isValidDigitalPin("esp32dev", 34)).toBe(true);
     expect(isValidDigitalPin("esp32dev", 20)).toBe(false);
     expect(isValidDigitalPin("unknown-board", 99)).toBeUndefined();
+  });
+
+  it("validates analog and PWM pins from shared config", () => {
+    expect(isValidAnalogPin("uno", 14)).toBe(true);
+    expect(isValidAnalogPin("uno", 13)).toBe(false);
+    expect(isValidPwmPin("uno", 9)).toBe(true);
+    expect(isValidPwmPin("uno", 8)).toBe(false);
+    expect(isValidAnalogPin("esp32dev", 34)).toBe(true);
+    expect(isValidPwmPin("esp32dev", 34)).toBe(false);
   });
 
   it("keeps board ids available for docs and UI surfaces", () => {
