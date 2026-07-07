@@ -1,3 +1,5 @@
+import { getDefaultPlatform } from "@inojs/config";
+
 export interface PlatformIOConfig {
   board: string;
   platform?: string;
@@ -6,22 +8,8 @@ export interface PlatformIOConfig {
   libDeps?: string[];
 }
 
-const defaultPlatforms: Record<string, string> = {
-  uno: "atmelavr",
-  nanoatmega328: "atmelavr",
-  megaatmega2560: "atmelavr",
-  due: "atmelsam",
-  teensy41: "teensy",
-  pico: "raspberrypi",
-  rpipico: "raspberrypi",
-  bluepill_f103c8: "ststm32",
-  genericSTM32F103C8: "ststm32",
-  nodemcuv2: "espressif8266",
-  esp32dev: "espressif32"
-};
-
 export function generatePlatformIOIni(config: PlatformIOConfig): string {
-  const platform = config.platform ?? defaultPlatforms[config.board] ?? "atmelavr";
+  const platform = config.platform ?? getDefaultPlatform(config.board) ?? "atmelavr";
   const framework = config.framework ?? "arduino";
   const lines = [
     "[env:inojs]",

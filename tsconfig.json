@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/parser" },
     { "path": "./packages/plugin-api" },
+    { "path": "./packages/config" },
     { "path": "./packages/generator" },
     { "path": "./packages/platformio" },
     { "path": "./packages/runtime" },

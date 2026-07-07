@@ -31,6 +31,42 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
+  examples/advanced-env-dashboard:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@inojs/dht':
+        specifier: workspace:*
+        version: link:../../plugins/dht
+      '@inojs/eeprom':
+        specifier: workspace:*
+        version: link:../../plugins/eeprom
+      '@inojs/neopixel':
+        specifier: workspace:*
+        version: link:../../plugins/neopixel
+      '@inojs/oled':
+        specifier: workspace:*
+        version: link:../../plugins/oled
+
+  examples/advanced-iot-monitor:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@inojs/dht':
+        specifier: workspace:*
+        version: link:../../plugins/dht
+      '@inojs/mqtt':
+        specifier: workspace:*
+        version: link:../../plugins/mqtt
+      '@inojs/sd':
+        specifier: workspace:*
+        version: link:../../plugins/sd
+      '@inojs/wifi':
+        specifier: workspace:*
+        version: link:../../plugins/wifi
+
   examples/analog-read:
     dependencies:
       '@inojs/core':
@@ -197,6 +233,16 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
+  packages/config:
+    dependencies:
+      '@inojs/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
+    devDependencies:
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
   packages/core:
     devDependencies:
       typescript:
@@ -208,6 +254,9 @@ importers:
       '@babel/types':
         specifier: ^7.28.0
         version: 7.29.7
+      '@inojs/config':
+        specifier: workspace:*
+        version: link:../config
       '@inojs/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
@@ -230,6 +279,10 @@ importers:
         version: 5.9.3
 
   packages/platformio:
+    dependencies:
+      '@inojs/config':
+        specifier: workspace:*
+        version: link:../config
     devDependencies:
       typescript:
         specifier: ^5.8.0
