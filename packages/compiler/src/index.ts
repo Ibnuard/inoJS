@@ -1,5 +1,6 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
+import type { File, Statement } from "@babel/types";
 import { generateArduinoCpp, type Diagnostic } from "@inojs/generator";
 import { parse } from "@inojs/parser";
 import { generatePlatformIOIni, type PlatformIOConfig } from "@inojs/platformio";
@@ -35,8 +36,9 @@ export async function compileProject(options: CompileOptions): Promise<CompileRe
     ...config,
     ...options.platformio
   };
-  const generated = generateArduinoCpp(parsed.ast, {
-    plugins: resolveProjectPlugins(parsed.ast),
+  const ast = await buildProjectAst(sourcePath, parsed.ast);
+  const generated = generateArduinoCpp(ast, {
+    plugins: resolveProjectPlugins(ast),
     board: platformio.board
   });
 
@@ -68,6 +70,98 @@ export async function compileProject(options: CompileOptions): Promise<CompileRe
     sourceMapPath,
     diagnostics: generated.diagnostics
   };
+}
+
+async function buildProjectAst(entryPath: string, entryAst: File): Promise<File> {
+  const graph = new LocalModuleGraph();
+  return graph.build(entryPath, entryAst);
+}
+
+class LocalModuleGraph {
+  private readonly visited = new Set<string>();
+  private readonly visiting = new Set<string>();
+
+  async build(entryPath: string, entryAst: File): Promise<File> {
+    const body = await this.loadModule(resolve(entryPath), entryAst);
+    entryAst.program.body = body;
+    return entryAst;
+  }
+
+  private async loadModule(filename: string, ast?: File): Promise<Statement[]> {
+    const resolved = resolve(filename);
+    if (this.visited.has(resolved)) return [];
+    if (this.visiting.has(resolved)) {
+      throw new Error(`Circular local import detected at ${resolved}`);
+    }
+
+    this.visiting.add(resolved);
+    const parsed = ast ?? parse(await readFile(resolved, "utf8"), { filename: resolved }).ast;
+    const body: Statement[] = [];
+
+    for (const statement of parsed.program.body) {
+      if (statement.type === "ImportDeclaration" && isLocalImport(statement.source.value)) {
+        const child = await resolveLocalImport(resolved, statement.source.value);
+        body.push(...await this.loadModule(child));
+        continue;
+      }
+
+      const normalized = normalizeExportStatement(statement);
+      if (normalized) body.push(normalized);
+    }
+
+    this.visiting.delete(resolved);
+    this.visited.add(resolved);
+    return body;
+  }
+}
+
+function isLocalImport(source: string): boolean {
+  return source.startsWith("./") || source.startsWith("../");
+}
+
+async function resolveLocalImport(importer: string, source: string): Promise<string> {
+  const base = resolve(dirname(importer), source);
+  const candidates = extname(base)
+    ? [base]
+    : [
+      `${base}.ts`,
+      `${base}.js`,
+      join(base, "index.ts"),
+      join(base, "index.js")
+    ];
+
+  for (const candidate of candidates) {
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      // Try the next local module candidate.
+    }
+  }
+
+  throw new Error(`Unable to resolve local import ${JSON.stringify(source)} from ${importer}`);
+}
+
+function normalizeExportStatement(statement: Statement): Statement | undefined {
+  if (statement.type === "ExportNamedDeclaration") {
+    if (statement.declaration) {
+      statement.declaration.leadingComments ??= statement.leadingComments;
+      return statement.declaration;
+    }
+    return undefined;
+  }
+
+  if (statement.type === "ExportDefaultDeclaration") {
+    const declaration = statement.declaration;
+    if (declaration.type === "FunctionDeclaration") {
+      declaration.leadingComments ??= statement.leadingComments;
+    }
+    return declaration.type === "FunctionDeclaration" ? declaration : undefined;
+  }
+
+  if (statement.type === "ExportAllDeclaration") return undefined;
+
+  return statement;
 }
 
 function unique(values: string[]): string[] {

@@ -136,6 +136,12 @@ importers:
         specifier: workspace:*
         version: link:../../plugins/wifi
 
+  examples/multi-file:
+    dependencies:
+      '@inojs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+
   examples/neopixel:
     dependencies:
       '@inojs/core':

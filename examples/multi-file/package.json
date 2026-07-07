@@ -1,0 +1,9 @@
+{
+  "name": "inojs-example-multi-file",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@inojs/core": "workspace:*"
+  }
+}

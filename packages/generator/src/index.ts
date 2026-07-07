@@ -171,7 +171,7 @@ function collectFunctionDeclaration(statement: FunctionDeclaration, context: Con
     return [];
   }
 
-  const parameters = statement.params.map((parameter) => parameterToCpp(parameter, context)).join(", ");
+  const parameters = statement.params.map((parameter) => parameterToCpp(parameter, context, statement)).join(", ");
   const returnType = functionReturnType(statement, context);
   const body = blockToMappedCpp(statement.body, context);
 
@@ -730,13 +730,14 @@ function switchCaseToMappedCpp(switchCase: SwitchCase, context: Context): CppLin
   ];
 }
 
-function parameterToCpp(parameter: FunctionDeclaration["params"][number], context: Context): string {
+function parameterToCpp(parameter: FunctionDeclaration["params"][number], context: Context, statement: FunctionDeclaration): string {
   if (parameter.type !== "Identifier") {
     unsupported(context, `Unsupported function parameter: ${parameter.type}`, parameter);
     return "double /* unsupported */";
   }
 
-  const type = typeAnnotationToCpp(getTsTypeAnnotation(parameter.typeAnnotation), context);
+  const type = typeAnnotationToCpp(getTsTypeAnnotation(parameter.typeAnnotation), context)
+    ?? jsDocTypeToCpp(getJsDocParamType(statement, parameter.name));
   if (!type) {
     unsupported(context, `Function parameter ${parameter.name} should declare a type for stable C++ generation.`, parameter);
   }
@@ -747,6 +748,8 @@ function parameterToCpp(parameter: FunctionDeclaration["params"][number], contex
 function functionReturnType(statement: FunctionDeclaration, context: Context): string {
   const annotation = typeAnnotationToCpp(getTsTypeAnnotation(statement.returnType), context);
   if (annotation) return annotation;
+  const jsDocReturn = jsDocTypeToCpp(getJsDocReturnType(statement));
+  if (jsDocReturn) return jsDocReturn;
   const inferred = inferFunctionReturnType(statement.body, context);
   if (inferred) return inferred;
   if (!functionHasReturnValue(statement.body)) return "void";
@@ -813,6 +816,40 @@ function typeAnnotationToCpp(typeAnnotation: Node | null | undefined, context: C
       unsupported(context, `Unsupported TypeScript type annotation: ${typeAnnotation.type}`, typeAnnotation);
       return "auto";
   }
+}
+
+function getJsDocParamType(statement: FunctionDeclaration, name: string): string | undefined {
+  const comments = getLeadingCommentText(statement);
+  const pattern = new RegExp(`@param\\s+\\{([^}]+)\\}\\s+${escapeRegExp(name)}(?:\\s|$)`);
+  return comments.match(pattern)?.[1];
+}
+
+function getJsDocReturnType(statement: FunctionDeclaration): string | undefined {
+  const comments = getLeadingCommentText(statement);
+  return comments.match(/@returns?\s+\{([^}]+)\}/)?.[1];
+}
+
+function getLeadingCommentText(node: Node): string {
+  return node.leadingComments?.map((comment) => comment.value).join("\n") ?? "";
+}
+
+function jsDocTypeToCpp(type: string | undefined): string | undefined {
+  switch (type?.trim()) {
+    case "number":
+      return "double";
+    case "boolean":
+      return "bool";
+    case "string":
+      return "String";
+    case "void":
+      return "void";
+    default:
+      return undefined;
+  }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function inferDeclarationType(declaration: VariableDeclarator, context: Context): string {
